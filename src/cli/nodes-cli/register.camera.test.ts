@@ -232,9 +232,10 @@ describe("nodes camera snap CLI option forwarding", () => {
   });
 
   it("lists Windows-style camera.list payloads that use the cameras key (#181348)", async () => {
+    // openclaw-windows-node serializes CameraInfo as PascalCase DeviceId/Name/IsDefault.
     vi.mocked(rpc.callNodesGatewayCli).mockResolvedValueOnce({
       payload: {
-        cameras: [{ name: "Integrated Webcam", position: "unknown", id: "cam-0" }],
+        cameras: [{ DeviceId: "windows-camera-1", Name: "EasyCamera", IsDefault: true }],
       },
     });
 
@@ -243,11 +244,29 @@ describe("nodes camera snap CLI option forwarding", () => {
     ).parseAsync(["node", "nodes", "camera", "list", "--node", "test-node", "--json"]);
 
     expect(vi.mocked(defaultRuntime.writeJson)).toHaveBeenCalledWith([
-      { name: "Integrated Webcam", position: "unknown", id: "cam-0" },
+      { id: "windows-camera-1", name: "EasyCamera" },
     ]);
     expect(vi.mocked(defaultRuntime.log)).not.toHaveBeenCalledWith(
       expect.stringContaining("No cameras reported."),
     );
+  });
+
+  it("renders Windows PascalCase camera fields in the text table", async () => {
+    vi.mocked(rpc.callNodesGatewayCli).mockResolvedValueOnce({
+      payload: {
+        cameras: [{ DeviceId: "windows-camera-1", Name: "EasyCamera", IsDefault: true }],
+      },
+    });
+
+    await (
+      await buildRootCommand()
+    ).parseAsync(["node", "nodes", "camera", "list", "--node", "test-node"]);
+
+    const output = vi.mocked(defaultRuntime.log).mock.calls.flat().join("\n");
+    expect(output).toContain("EasyCamera");
+    expect(output).toContain("windows-camera-1");
+    expect(output).not.toContain("No cameras reported.");
+    expect(output).not.toContain("Unknown Camera");
   });
 
   it("prefers a non-empty devices array when both devices and cameras are present", async () => {

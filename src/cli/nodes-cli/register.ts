@@ -63,12 +63,19 @@ function parseNodeInvokeParams(value = "{}"): unknown {
 // Node platforms disagree on the camera.list array key: iOS/Android/Linux return
 // `devices`; openclaw-windows-node returns `cameras`. Prefer a non-empty `devices`
 // list, then fall back so Windows nodes list without waiting on a node re-release.
+// Windows serializes CameraInfo as PascalCase `{ DeviceId, Name, IsDefault }`.
 function readCameraListDevices(payload: Record<string, unknown>): Record<string, unknown>[] {
   const fromDevices = Array.isArray(payload.devices) ? payload.devices.filter(isRecord) : [];
   if (fromDevices.length > 0) {
     return fromDevices;
   }
-  return Array.isArray(payload.cameras) ? payload.cameras.filter(isRecord) : [];
+  if (!Array.isArray(payload.cameras)) {
+    return [];
+  }
+  return payload.cameras.filter(isRecord).map((device) => ({
+    id: device.DeviceId,
+    name: device.Name,
+  }));
 }
 
 /** Register the `nodes` command group and lazy plugin-provided node commands. */
