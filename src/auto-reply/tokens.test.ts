@@ -5,6 +5,7 @@ import {
   isSilentReplyPrefixText,
   isSilentReplyPayloadText,
   isSilentReplyText,
+  SILENT_REPLY_TOKEN,
   startsWithSilentToken,
   stripLeadingSilentToken,
   stripSilentToken,
@@ -171,6 +172,23 @@ describe("isSilentReplyPayloadText", () => {
     ["open", "<mm:think>internal reasoning\nNO_REPLY"],
   ])("returns true for %s MiniMax reasoning followed by NO_REPLY", (_kind, text) => {
     expect(isSilentReplyPayloadText(text)).toBe(true);
+  });
+
+  it.each(["NO_R", "NO_", "NO_RE", "NO_REP", "NO_R\n", "  NO_R  ", "HEARTBEAT_O"])(
+    "suppresses truncated silent token final text %j",
+    (text) => {
+      const token = text.trim().startsWith("HEARTBEAT") ? "HEARTBEAT_OK" : SILENT_REPLY_TOKEN;
+      expect(isSilentReplyPayloadText(text, token)).toBe(true);
+    },
+  );
+
+  it.each([
+    ["bare NO stays visible for yes/no answers", "NO", SILENT_REPLY_TOKEN],
+    ["lowercase fragments stay visible", "no_r", SILENT_REPLY_TOKEN],
+    ["substantive NO_R-like words stay visible", "NOT ANYMORE", SILENT_REPLY_TOKEN],
+    ["non-prefix stays visible", "NO_X", SILENT_REPLY_TOKEN],
+  ])("%s", (_name, text, token) => {
+    expect(isSilentReplyPayloadText(text, token)).toBe(false);
   });
 
   it("keeps substantive replies that also contain a trailing NO_REPLY token", () => {

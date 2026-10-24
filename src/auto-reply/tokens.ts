@@ -220,6 +220,28 @@ function isReasoningPrefixedSilentReplyText(
   );
 }
 
+/**
+ * True for a fully-uppercase proper prefix of the silent token that already
+ * includes a delimiter (for example `NO_R` / `NO_` for `NO_REPLY`). Streaming
+ * also suppresses bare letter prefixes like `NO`; final payloads must keep
+ * those visible so yes/no answers survive (#170158).
+ */
+export function isSilentReplyTruncatedPrefixText(
+  text: string | undefined,
+  token: string = SILENT_REPLY_TOKEN,
+): boolean {
+  if (typeof text !== "string") {
+    return false;
+  }
+  const trimmed = text.trim();
+  if (!trimmed || !isSilentReplyPrefixText(trimmed, token)) {
+    return false;
+  }
+  const normalized = trimmed.toUpperCase();
+  const tokenUpper = token.toUpperCase();
+  return normalized !== tokenUpper && /[^A-Z]/.test(normalized);
+}
+
 /** Returns true for token-only, JSON-envelope, or reasoning-prefixed silent payload text. */
 export function isSilentReplyPayloadText(
   text: string | undefined,
@@ -227,6 +249,7 @@ export function isSilentReplyPayloadText(
 ): boolean {
   return (
     isSilentReplyText(text, token) ||
+    isSilentReplyTruncatedPrefixText(text, token) ||
     isSilentReplyJsonStringText(text, token) ||
     isSilentReplyEnvelopeText(text, token) ||
     isReasoningPrefixedSilentReplyText(text, token)
