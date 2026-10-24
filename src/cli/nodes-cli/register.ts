@@ -60,6 +60,17 @@ function parseNodeInvokeParams(value = "{}"): unknown {
   }
 }
 
+// Node platforms disagree on the camera.list array key: iOS/Android/Linux return
+// `devices`; openclaw-windows-node returns `cameras`. Prefer a non-empty `devices`
+// list, then fall back so Windows nodes list without waiting on a node re-release.
+function readCameraListDevices(payload: Record<string, unknown>): Record<string, unknown>[] {
+  const fromDevices = Array.isArray(payload.devices) ? payload.devices.filter(isRecord) : [];
+  if (fromDevices.length > 0) {
+    return fromDevices;
+  }
+  return Array.isArray(payload.cameras) ? payload.cameras.filter(isRecord) : [];
+}
+
 /** Register the `nodes` command group and lazy plugin-provided node commands. */
 export async function registerNodesCli(program: Command, argv: readonly string[] = process.argv) {
   const nodes = program
@@ -250,7 +261,7 @@ export async function registerNodesCli(program: Command, argv: readonly string[]
           );
 
           const payload = asRecord(asRecord(raw).payload);
-          const devices = Array.isArray(payload.devices) ? payload.devices.filter(isRecord) : [];
+          const devices = readCameraListDevices(payload);
 
           if (opts.json) {
             defaultRuntime.writeJson(devices);

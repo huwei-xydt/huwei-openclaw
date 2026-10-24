@@ -230,4 +230,40 @@ describe("nodes camera snap CLI option forwarding", () => {
     expect(output).not.toContain("\u0007");
     expect(output).toMatch(/frontcam\s.*back\s.*dev-1/u);
   });
+
+  it("lists Windows-style camera.list payloads that use the cameras key (#181348)", async () => {
+    vi.mocked(rpc.callNodesGatewayCli).mockResolvedValueOnce({
+      payload: {
+        cameras: [{ name: "Integrated Webcam", position: "unknown", id: "cam-0" }],
+      },
+    });
+
+    await (
+      await buildRootCommand()
+    ).parseAsync(["node", "nodes", "camera", "list", "--node", "test-node", "--json"]);
+
+    expect(vi.mocked(defaultRuntime.writeJson)).toHaveBeenCalledWith([
+      { name: "Integrated Webcam", position: "unknown", id: "cam-0" },
+    ]);
+    expect(vi.mocked(defaultRuntime.log)).not.toHaveBeenCalledWith(
+      expect.stringContaining("No cameras reported."),
+    );
+  });
+
+  it("prefers a non-empty devices array when both devices and cameras are present", async () => {
+    vi.mocked(rpc.callNodesGatewayCli).mockResolvedValueOnce({
+      payload: {
+        devices: [{ name: "android-cam", position: "back", id: "dev-a" }],
+        cameras: [{ name: "windows-cam", position: "unknown", id: "cam-b" }],
+      },
+    });
+
+    await (
+      await buildRootCommand()
+    ).parseAsync(["node", "nodes", "camera", "list", "--node", "test-node", "--json"]);
+
+    expect(vi.mocked(defaultRuntime.writeJson)).toHaveBeenCalledWith([
+      { name: "android-cam", position: "back", id: "dev-a" },
+    ]);
+  });
 });
