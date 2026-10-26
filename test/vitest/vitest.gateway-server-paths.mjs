@@ -41,6 +41,7 @@ export const gatewayDatabaseWorkerTestFiles = [
   "src/gateway/control-ui-session-prs-own.test.ts",
   "src/gateway/control-ui-session-prs-publication.test.ts",
   "src/gateway/control-ui-session-prs-retention.test.ts",
+  "src/gateway/control-ui-session-prs-fork-remote.proof.test.ts",
   "src/gateway/control-ui-session-prs-staleness.test.ts",
   "src/gateway/control-ui-session-prs.test.ts",
   "src/gateway/control-ui-session-task-prs.test.ts",

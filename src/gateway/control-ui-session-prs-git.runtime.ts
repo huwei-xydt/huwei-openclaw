@@ -94,11 +94,18 @@ export async function readCheckoutGitRevision(
             checkout,
           )
         : [];
+    // Alternate-head discovery follows which non-origin remote-tracking refs hold
+    // this branch, so the first fork push must invalidate the cached context.
+    const contextBranchRefs =
+      scope === "context" && selectedBranch
+        ? listContextBranchRefs(checkout.refsBase, selectedBranch)
+        : [];
     return JSON.stringify([
       // Context exposes branch names and remote configuration, not commit IDs.
       scope !== "context" ? checkout : { branch: checkout.branch, refsBase: checkout.refsBase },
       defaultRef,
       [...tips],
+      contextBranchRefs,
       packedReplacements,
       paths.toSorted().map((file) => {
         const stat = fs.lstatSync(file, { throwIfNoEntry: false });
@@ -118,6 +125,44 @@ export async function readCheckoutGitRevision(
   } catch (error) {
     return unavailableDiffRevision(timing, undefined, error);
   }
+}
+
+/**
+ * Non-origin remote-tracking refs holding this branch, from the loose and packed
+ * inventories. Context revision stays a filesystem read: no Git subprocess.
+ */
+function listContextBranchRefs(refsBase: string, branch: string): string[] {
+  const matches = (rest: string) => {
+    const separator = rest.indexOf("/");
+    return (
+      separator > 0 && rest.slice(separator + 1) === branch && rest.slice(0, separator) !== "origin"
+    );
+  };
+  const refs = new Set<string>();
+  const remotes = nodePath.join(refsBase, "refs/remotes");
+  if (fs.existsSync(remotes)) {
+    for (const { relativePath, dirent } of listDirectoryTreeStrictSync(remotes)) {
+      if (!dirent.isFile()) {
+        continue;
+      }
+      const rest = relativePath.split(nodePath.sep).join("/");
+      if (matches(rest)) {
+        refs.add(`refs/remotes/${rest}`);
+      }
+    }
+  }
+  try {
+    const packed = fs.readFileSync(nodePath.join(refsBase, "packed-refs"), "utf8");
+    for (const line of packed.split("\n")) {
+      const rest = /^(\S+)\s+refs\/remotes\/(.+)$/u.exec(line)?.[2];
+      if (rest && matches(rest)) {
+        refs.add(`refs/remotes/${rest}`);
+      }
+    }
+  } catch {
+    // A missing packed-refs file is a normal loose-ref layout.
+  }
+  return [...refs].toSorted();
 }
 
 function readDefaultRef(head: ReturnType<typeof readCheckoutHead>): string | null | undefined {
@@ -166,8 +211,9 @@ function readDefaultRef(head: ReturnType<typeof readCheckoutHead>): string | nul
 }
 
 /**
- * Non-origin GitHub remotes whose remote-tracking ref holds this branch: the
- * PR head owner candidates when the branch was pushed to a fork remote (#183747).
+ * Non-origin remotes on the checkout's effective GitHub host whose
+ * remote-tracking ref holds this branch: the PR head owner candidates when the
+ * branch was pushed to a fork remote (#183747).
  */
 async function readAlternateHeadOwners(
   root: string,
@@ -182,7 +228,8 @@ async function readAlternateHeadOwners(
   if (!listing) {
     return undefined;
   }
-  const candidates = new Map<string, { owner: string; ref: string }>();
+  const originKey = originOwner.toLowerCase();
+  const candidates: { owner: string; ownerKey: string; ref: string }[] = [];
   for (const line of listing.split("\n")) {
     const match = /^(\S+)\s+(\S+)\s+\((?:fetch|push)\)$/u.exec(line);
     const remoteName = match?.[1];
@@ -190,17 +237,18 @@ async function readAlternateHeadOwners(
     if (!remoteName || !url || remoteName === "origin") {
       continue;
     }
-    const parsed = parseGitHubRemoteUrl(url) ?? parseGitHubRemoteUrl(url, githubHost);
+    // Owners from another GitHub host cannot be queried on this checkout's host.
+    const parsed = parseGitHubRemoteUrl(url, githubHost);
     if (!parsed) {
       continue;
     }
     const ownerKey = parsed.owner.toLowerCase();
-    if (ownerKey === originOwner.toLowerCase() || candidates.has(ownerKey)) {
+    if (ownerKey === originKey) {
       continue;
     }
-    candidates.set(ownerKey, { owner: parsed.owner, ref: `refs/remotes/${remoteName}/${branch}` });
+    candidates.push({ owner: parsed.owner, ownerKey, ref: `refs/remotes/${remoteName}/${branch}` });
   }
-  if (candidates.size === 0) {
+  if (candidates.length === 0) {
     return undefined;
   }
   // for-each-ref covers packed refs without requiring the worker's filesystem-ref context.
@@ -213,9 +261,17 @@ async function readAlternateHeadOwners(
     return undefined;
   }
   const held = new Set(remoteRefs.split("\n"));
-  const owners = [...candidates.values()]
-    .filter((candidate) => held.has(candidate.ref))
-    .map((candidate) => candidate.owner);
+  // Filter by the held branch ref before deduplicating owners: the same owner's
+  // other remote without the branch must not evict the one holding it.
+  const owners: string[] = [];
+  const seen = new Set<string>();
+  for (const candidate of candidates) {
+    if (!held.has(candidate.ref) || seen.has(candidate.ownerKey)) {
+      continue;
+    }
+    seen.add(candidate.ownerKey);
+    owners.push(candidate.owner);
+  }
   return owners.length > 0 ? owners : undefined;
 }
 
@@ -244,11 +300,13 @@ export async function readCheckoutGitContext(
       : preparedDefaultRef;
   const defaultBranch = defaultRef?.replace(/^origin\//, "");
   const selectedBranch = branch === "HEAD" ? null : branch;
+  // Alternate remotes are only meaningful on the host the checkout itself resolves to.
+  const effectiveHost = publicRemote ? "github.com" : githubHost;
   const alternateHeadOwners = await readAlternateHeadOwners(
     root,
     selectedBranch,
     remote.owner,
-    githubHost,
+    effectiveHost,
   );
   return {
     ...remote,
