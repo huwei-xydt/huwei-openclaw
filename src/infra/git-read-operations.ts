@@ -10,6 +10,8 @@ export type GitCheckoutContext = {
   branch: string | null;
   root?: string;
   defaultBranch?: string;
+  /** Non-origin GitHub owners whose remotes hold this branch; PR head query candidates. */
+  alternateHeadOwners?: readonly string[];
 };
 
 /** Lowercased merged-PR head, its target branch, and its merge commit. */

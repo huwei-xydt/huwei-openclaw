@@ -91,6 +91,7 @@ function branchCacheKey(
     context.owner.toLowerCase(),
     context.repo.toLowerCase(),
     context.branch,
+    [...(context.alternateHeadOwners ?? [])].map((owner) => owner.toLowerCase()).toSorted(),
     sessionIdentity,
     read.cacheScope,
   ]);
@@ -225,11 +226,28 @@ async function fetchBranchPullRequests(
   read: ReturnType<typeof prepareSessionPullRequestGitHubRead>,
   refresh: boolean,
 ): Promise<BranchPullRequestsSnapshot> {
-  const head = `${context.owner}:${context.branch}`;
-  let items = parsePullList(
-    await read.request(pullsByHeadUrl(context.owner, context.repo, head, read.apiBaseUrl)),
-    read.host,
-  );
+  // Origin owner first; alternate owners are remotes that hold this branch (#183747).
+  const headOwners = [
+    context.owner,
+    ...(context.alternateHeadOwners ?? []).filter(
+      (owner) => owner.toLowerCase() !== context.owner.toLowerCase(),
+    ),
+  ];
+  const pullsWithHead = async (repoOwner: string, repo: string) => {
+    for (const owner of headOwners) {
+      const items = parsePullList(
+        await read.request(
+          pullsByHeadUrl(repoOwner, repo, `${owner}:${context.branch}`, read.apiBaseUrl),
+        ),
+        read.host,
+      );
+      if (items.length > 0) {
+        return items;
+      }
+    }
+    return [];
+  };
+  let items = await pullsWithHead(context.owner, context.repo);
   if (items.length === 0) {
     // Fork flow: the branch lives on the fork but PRs open against the parent.
     const parent = resolveGitHubForkParent(
@@ -238,10 +256,7 @@ async function fetchBranchPullRequests(
       ),
     );
     if (parent) {
-      items = parsePullList(
-        await read.request(pullsByHeadUrl(parent.owner, parent.repo, head, read.apiBaseUrl)),
-        read.host,
-      );
+      items = await pullsWithHead(parent.owner, parent.repo);
     }
   }
   // Landing detection needs every fetched merged head, not just the displayed

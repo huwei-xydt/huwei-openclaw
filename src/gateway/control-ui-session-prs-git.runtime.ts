@@ -165,6 +165,60 @@ function readDefaultRef(head: ReturnType<typeof readCheckoutHead>): string | nul
   }
 }
 
+/**
+ * Non-origin GitHub remotes whose remote-tracking ref holds this branch: the
+ * PR head owner candidates when the branch was pushed to a fork remote (#183747).
+ */
+async function readAlternateHeadOwners(
+  root: string,
+  branch: string | null,
+  originOwner: string,
+  githubHost: string,
+): Promise<readonly string[] | undefined> {
+  if (!branch || branch === "HEAD") {
+    return undefined;
+  }
+  const listing = await gitOutput(root, ["remote", "-v"]);
+  if (!listing) {
+    return undefined;
+  }
+  const candidates = new Map<string, { owner: string; ref: string }>();
+  for (const line of listing.split("\n")) {
+    const match = /^(\S+)\s+(\S+)\s+\((?:fetch|push)\)$/u.exec(line);
+    const remoteName = match?.[1];
+    const url = match?.[2];
+    if (!remoteName || !url || remoteName === "origin") {
+      continue;
+    }
+    const parsed = parseGitHubRemoteUrl(url) ?? parseGitHubRemoteUrl(url, githubHost);
+    if (!parsed) {
+      continue;
+    }
+    const ownerKey = parsed.owner.toLowerCase();
+    if (ownerKey === originOwner.toLowerCase() || candidates.has(ownerKey)) {
+      continue;
+    }
+    candidates.set(ownerKey, { owner: parsed.owner, ref: `refs/remotes/${remoteName}/${branch}` });
+  }
+  if (candidates.size === 0) {
+    return undefined;
+  }
+  // for-each-ref covers packed refs without requiring the worker's filesystem-ref context.
+  const remoteRefs = await gitOutput(root, [
+    "for-each-ref",
+    "--format=%(refname)",
+    "refs/remotes/",
+  ]);
+  if (!remoteRefs) {
+    return undefined;
+  }
+  const held = new Set(remoteRefs.split("\n"));
+  const owners = [...candidates.values()]
+    .filter((candidate) => held.has(candidate.ref))
+    .map((candidate) => candidate.owner);
+  return owners.length > 0 ? owners : undefined;
+}
+
 export async function readCheckoutGitContext(
   root: string,
   githubHost = "github.com",
@@ -189,12 +243,20 @@ export async function readCheckoutGitContext(
       ? await gitOutput(root, ["symbolic-ref", "--short", "refs/remotes/origin/HEAD"])
       : preparedDefaultRef;
   const defaultBranch = defaultRef?.replace(/^origin\//, "");
+  const selectedBranch = branch === "HEAD" ? null : branch;
+  const alternateHeadOwners = await readAlternateHeadOwners(
+    root,
+    selectedBranch,
+    remote.owner,
+    githubHost,
+  );
   return {
     ...remote,
     ...(!publicRemote ? { host: githubHost } : {}),
-    branch: branch === "HEAD" ? null : branch,
+    branch: selectedBranch,
     root,
     ...(defaultBranch ? { defaultBranch } : {}),
+    ...(alternateHeadOwners ? { alternateHeadOwners } : {}),
   };
 }
 
