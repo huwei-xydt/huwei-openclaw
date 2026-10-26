@@ -102,4 +102,18 @@ describe("readCheckoutGitContext", () => {
     const after = await runGitReadOperation({ type: "checkout.context", input: { root } });
     expect(after?.alternateHeadOwners).toEqual(["huwei-xydt"]);
   });
+
+  it("discovers the fork owner from packed remote-tracking refs without a loose ref (#183747)", async () => {
+    await git("update-ref", "-d", "refs/remotes/fork/fix/session-pr-fork-remote");
+    await git("update-ref", "refs/remotes/fork/fix/session-pr-fork-remote", "HEAD");
+    await git("pack-refs", "--all");
+    await expect(
+      fs.access(
+        path.join(root, ".git", "refs", "remotes", "fork", "fix", "session-pr-fork-remote"),
+      ),
+    ).rejects.toThrowError();
+
+    const context = await runGitReadOperation({ type: "checkout.context", input: { root } });
+    expect(context?.alternateHeadOwners).toEqual(["huwei-xydt"]);
+  });
 });

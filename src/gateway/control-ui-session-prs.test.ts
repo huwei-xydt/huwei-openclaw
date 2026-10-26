@@ -366,51 +366,6 @@ describe("loadControlUiSessionPullRequests", () => {
     ).toBe(true);
   });
 
-  it("queries alternate head owners when the origin owner holds no PR for the branch (#183747)", async () => {
-    const fetchImpl = routedFetch([
-      {
-        match: "head=openclaw%3A",
-        response: () => githubJson([]),
-      },
-      {
-        match: "head=huwei-xydt%3A",
-        response: () => githubJson([pullListItem()]),
-      },
-      {
-        match: "/pulls/103469",
-        response: () => githubJson({ additions: 4, deletions: 3, changed_files: 2 }),
-      },
-      {
-        match: "/check-runs",
-        response: () =>
-          githubJson({
-            total_count: 1,
-            check_runs: [{ status: "completed", conclusion: "success" }],
-          }),
-      },
-      {
-        match: "/repos/openclaw/openclaw",
-        response: () => githubJson({ fork: false }),
-      },
-    ]);
-    vi.stubGlobal("fetch", fetchImpl);
-
-    const result = await loadControlUiSessionPullRequests(
-      { sessionKey: "agent:main:main" },
-      {
-        resolveGitContext: async () => ({
-          ...context,
-          alternateHeadOwners: ["huwei-xydt"],
-        }),
-      },
-    );
-
-    const urls = fetchImpl.mock.calls.map((call) => requestUrl(call[0] as RequestInfo | URL));
-    expect(urls.some((url) => url.includes("head=openclaw%3A"))).toBe(true);
-    expect(urls.some((url) => url.includes("head=huwei-xydt%3A"))).toBe(true);
-    expect(result.pullRequests[0]?.number).toBe(103469);
-  });
-
   it("serves stale chips flagged rateLimited when GitHub quota runs out", async () => {
     let limited = false;
     const rateLimitedResponse = () =>

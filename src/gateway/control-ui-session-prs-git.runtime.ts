@@ -8,6 +8,7 @@ import type { GitReadOperations } from "../infra/git-read-operations.js";
 import { readGitHead, readGitMetadataPrefix, readGitRefs } from "../infra/git-root.js";
 import { canReadGitFilesystemRefs } from "../infra/git-worker-context.js";
 import type { GitWorkerOperations } from "../infra/git-worker-contract.js";
+import { escapeRegExp } from "../shared/regexp.js";
 import { readCheckoutDiffRevision } from "./control-ui-session-diff-revision.js";
 import {
   gitOutput,
@@ -153,8 +154,13 @@ function listContextBranchRefs(refsBase: string, branch: string): string[] {
   }
   try {
     const packed = fs.readFileSync(nodePath.join(refsBase, "packed-refs"), "utf8");
-    for (const line of packed.split("\n")) {
-      const rest = /^(\S+)\s+refs\/remotes\/(.+)$/u.exec(line)?.[2];
+    // Match only this branch's non-origin remote-tracking records (same selective
+    // approach as readGitRefs): never split the full tag/snapshot inventory.
+    const records = new RegExp(
+      `^(?![#^])\\S+\\s+refs/remotes/(?!(?:origin)/)([^/\\s]+/${escapeRegExp(branch)})(?=\\s|$)`,
+      "gm",
+    );
+    for (const [, rest] of packed.matchAll(records)) {
       if (rest && matches(rest)) {
         refs.add(`refs/remotes/${rest}`);
       }
