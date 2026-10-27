@@ -76,6 +76,40 @@ vi.mock("@clack/prompts", () => ({
   confirm: (options: unknown) => mocks.confirm(options),
 }));
 
+const fsWriteControl = vi.hoisted(() => ({
+  calls: [] as Array<{ file: string }>,
+}));
+
+const pathHasControlByte = (file: string) => {
+  for (let index = 0; index < file.length; index += 1) {
+    const code = file.charCodeAt(index);
+    if (code < 0x20 || code === 0x7f) {
+      return true;
+    }
+  }
+  return false;
+};
+
+vi.mock("node:fs", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("node:fs")>();
+  const writeFileSync: typeof actual.writeFileSync = (
+    ...args: Parameters<typeof actual.writeFileSync>
+  ) => {
+    const file = String(args[0]);
+    fsWriteControl.calls.push({ file });
+    // Control bytes are not portable filenames; rendering tests must not hit the real FS.
+    if (pathHasControlByte(file)) {
+      return;
+    }
+    return actual.writeFileSync(...args);
+  };
+  return {
+    ...actual,
+    writeFileSync,
+    default: { ...actual.default, writeFileSync },
+  };
+});
+
 function createManualSecretsPlan() {
   return {
     version: 1,
@@ -338,7 +372,7 @@ describe("secrets CLI", () => {
 
   it("escapes terminal controls in secrets configure preflight warnings and plan path", async () => {
     const esc = "\u001b";
-    const planPath = `/tmp/openclaw-plan${esc}[2J.json`;
+    const planPath = path.join(os.tmpdir(), `openclaw-plan${esc}[2J.json`);
     runSecretsConfigureInteractive.mockResolvedValue(
       createConfigureInteractiveResult({
         warnings: [`provider path ${esc}[31mred\u0007 leaked`],
@@ -346,9 +380,12 @@ describe("secrets CLI", () => {
     );
 
     confirm.mockResolvedValue(false);
+    fsWriteControl.calls.length = 0;
+    await fs.rm(planPath, { force: true });
 
     await runSecrets(["secrets", "configure", "--plan-out", planPath, "--skip-provider-setup"]);
 
+    expect(fsWriteControl.calls.map((call) => call.file)).toContain(planPath);
     const warningLine = runtimeLogs.find((line) => line.startsWith("- warning:"));
     expect(warningLine).toBeDefined();
     expect(warningLine).not.toContain(esc);
@@ -357,6 +394,7 @@ describe("secrets CLI", () => {
     expect(planLine).toBeDefined();
     expect(planLine).not.toContain(esc);
     expect(planLine).toContain("openclaw-plan.json");
+    await expect(fs.access(planPath)).rejects.toMatchObject({ code: "ENOENT" });
   });
 
   it("shows the irreversibility warning before applying configured targets (#83883)", async () => {
