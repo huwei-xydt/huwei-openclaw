@@ -106,7 +106,6 @@ vi.mock("node:fs", async (importOriginal) => {
   return {
     ...actual,
     writeFileSync,
-    default: { ...actual.default, writeFileSync },
   };
 });
 
