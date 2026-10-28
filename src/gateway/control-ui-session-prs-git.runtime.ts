@@ -4,11 +4,15 @@ import { readRegularFile } from "@openclaw/fs-safe/advanced";
 import { unavailableDiffRevision, type DiffReadTiming } from "../infra/diff-read-timing.js";
 import { listDirectoryTreeStrictSync } from "../infra/directory-walk.js";
 import { GitCommandTimeoutError, requireGitCommandOutput } from "../infra/git-exec.js";
-import type { GitReadOperations } from "../infra/git-read-operations.js";
-import { readGitHead, readGitMetadataPrefix, readGitRefs } from "../infra/git-root.js";
+import type { GitCheckoutContext, GitReadOperations } from "../infra/git-read-operations.js";
+import {
+  readGitHead,
+  readGitMetadataPrefix,
+  readGitBranchTrackingRemotes,
+  readGitRefs,
+} from "../infra/git-root.js";
 import { canReadGitFilesystemRefs } from "../infra/git-worker-context.js";
 import type { GitWorkerOperations } from "../infra/git-worker-contract.js";
-import { escapeRegExp } from "../shared/regexp.js";
 import { readCheckoutDiffRevision } from "./control-ui-session-diff-revision.js";
 import {
   gitOutput,
@@ -19,6 +23,21 @@ import {
   resolveBranchLanding,
 } from "./control-ui-session-prs-landing.js";
 import { parseGitHubRemoteUrl } from "./github-remote.js";
+
+/** Bound PR-list fanout for checkouts that track one branch on several forks. */
+const MAX_FORK_HEAD_CANDIDATES = 3;
+
+/**
+ * Alternate-fork discovery covers one named branch on several forks. Detached
+ * and default-branch checkouts never discover alternate fork heads, so their
+ * remote-tracking refs are not fork-head inputs.
+ */
+function canDiscoverAlternateForkHeads(
+  branch: string | null,
+  defaultBranch: string | undefined,
+): branch is string {
+  return branch !== null && branch !== "HEAD" && branch !== defaultBranch;
+}
 
 /** Observe only this checkout's refs; snapshot publication does not change PR facts. */
 export async function readCheckoutGitRevision(
@@ -84,6 +103,7 @@ export async function readCheckoutGitRevision(
     }
     const selectedBranch = branch ?? checkout.branch;
     const selectedDefault = defaultBranch ? `origin/${defaultBranch}` : defaultRef;
+    const defaultBranchName = defaultRef?.replace(/^origin\//, "");
     const tips =
       scope !== "context"
         ? await readRemoteRevisions(
@@ -95,20 +115,21 @@ export async function readCheckoutGitRevision(
             checkout,
           )
         : [];
-    // Alternate-head discovery follows which non-origin remote-tracking refs hold
-    // this branch, so the first fork push must invalidate the cached context.
-    const contextBranchRefs =
-      scope === "context" && selectedBranch
-        ? listContextBranchRefs(checkout.refsBase, selectedBranch)
-        : [];
+    // Context discovery resolves the branch on every remote, so remote-tracking
+    // ref presence is an input even when no tip is read. Detached and
+    // default-branch checkouts never discover alternate fork heads.
+    const trackingRemotes =
+      scope === "context" && canDiscoverAlternateForkHeads(selectedBranch, defaultBranchName)
+        ? readGitBranchTrackingRemotes(checkout.refsBase, selectedBranch)
+        : null;
     return {
       key: JSON.stringify([
         // Context exposes branch names and remote configuration, not commit IDs.
         scope !== "context" ? checkout : { branch: checkout.branch, refsBase: checkout.refsBase },
         defaultRef,
         [...tips],
-        contextBranchRefs,
         packedReplacements,
+        trackingRemotes,
         paths.toSorted().map((file) => {
           const stat = fs.lstatSync(file, { throwIfNoEntry: false });
           if (
@@ -128,49 +149,6 @@ export async function readCheckoutGitRevision(
   } catch (error) {
     return unavailableDiffRevision(timing, undefined, error);
   }
-}
-
-/**
- * Non-origin remote-tracking refs holding this branch, from the loose and packed
- * inventories. Context revision stays a filesystem read: no Git subprocess.
- */
-function listContextBranchRefs(refsBase: string, branch: string): string[] {
-  const matches = (rest: string) => {
-    const separator = rest.indexOf("/");
-    return (
-      separator > 0 && rest.slice(separator + 1) === branch && rest.slice(0, separator) !== "origin"
-    );
-  };
-  const refs = new Set<string>();
-  const remotes = nodePath.join(refsBase, "refs/remotes");
-  if (fs.existsSync(remotes)) {
-    for (const { relativePath, dirent } of listDirectoryTreeStrictSync(remotes)) {
-      if (!dirent.isFile()) {
-        continue;
-      }
-      const rest = relativePath.split(nodePath.sep).join("/");
-      if (matches(rest)) {
-        refs.add(`refs/remotes/${rest}`);
-      }
-    }
-  }
-  try {
-    const packed = fs.readFileSync(nodePath.join(refsBase, "packed-refs"), "utf8");
-    // Match only this branch's non-origin remote-tracking records (same selective
-    // approach as readGitRefs): never split the full tag/snapshot inventory.
-    const records = new RegExp(
-      `^(?![#^])\\S+\\s+refs/remotes/(?!(?:origin)/)([^/\\s]+/${escapeRegExp(branch)})(?=\\s|$)`,
-      "gm",
-    );
-    for (const [, rest] of packed.matchAll(records)) {
-      if (rest && matches(rest)) {
-        refs.add(`refs/remotes/${rest}`);
-      }
-    }
-  } catch {
-    // A missing packed-refs file is a normal loose-ref layout.
-  }
-  return [...refs].toSorted();
 }
 
 function readDefaultRef(head: ReturnType<typeof readCheckoutHead>): string | null | undefined {
@@ -219,68 +197,57 @@ function readDefaultRef(head: ReturnType<typeof readCheckoutHead>): string | nul
 }
 
 /**
- * Non-origin remotes on the checkout's effective GitHub host whose
- * remote-tracking ref holds this branch: the PR head owner candidates when the
- * branch was pushed to a fork remote (#183747).
+ * Resolve head candidates from local refs, not push configuration: contributors keep
+ * upstream as origin, fetch their branch from a fork remote, and often have no
+ * `pushRemote`, `remote.pushDefault`, or resolvable `@{push}`.
  */
-async function readAlternateHeadOwners(
+async function readForkHeadCandidates(
   root: string,
-  branch: string | null,
-  originOwner: string,
-  githubHost: string,
-): Promise<readonly string[] | undefined> {
-  if (!branch || branch === "HEAD") {
-    return undefined;
+  {
+    branch,
+    base,
+    head,
+    remoteHost,
+  }: {
+    branch: string;
+    base: Pick<GitCheckoutContext, "owner" | "repo">;
+    head: ReturnType<typeof readCheckoutHead>;
+    remoteHost: string;
+  },
+): Promise<NonNullable<GitCheckoutContext["forkHeadCandidates"]>> {
+  const candidates: NonNullable<GitCheckoutContext["forkHeadCandidates"]> = [];
+  if (!head?.refsBase) {
+    return candidates;
   }
-  const listing = await gitOutput(root, ["remote", "-v"]);
-  if (!listing) {
-    return undefined;
+  const seen = new Set([`${base.owner}/${base.repo}`.toLowerCase()]);
+  let remotes: string[];
+  try {
+    remotes = readGitBranchTrackingRemotes(head.refsBase, branch);
+  } catch {
+    // Unreadable ref metadata degrades to origin-only discovery, not a failed context.
+    return candidates;
   }
-  const originKey = originOwner.toLowerCase();
-  const candidates: { owner: string; ownerKey: string; ref: string }[] = [];
-  for (const line of listing.split("\n")) {
-    const match = /^(\S+)\s+(\S+)\s+\((?:fetch|push)\)$/u.exec(line);
-    const remoteName = match?.[1];
-    const url = match?.[2];
-    if (!remoteName || !url || remoteName === "origin") {
+  for (const remote of remotes) {
+    if (candidates.length === MAX_FORK_HEAD_CANDIDATES) {
+      break;
+    }
+    if (remote === "origin") {
       continue;
     }
-    // Owners from another GitHub host cannot be queried on this checkout's host.
-    const parsed = parseGitHubRemoteUrl(url, githubHost);
-    if (!parsed) {
+    const url = await gitOutput(root, ["remote", "get-url", remote]);
+    // The remote is only a candidate: the PR lookup verifies its head repository.
+    const fork = url ? parseGitHubRemoteUrl(url, remoteHost) : null;
+    if (!fork) {
       continue;
     }
-    const ownerKey = parsed.owner.toLowerCase();
-    if (ownerKey === originKey) {
+    const identity = `${fork.owner}/${fork.repo}`.toLowerCase();
+    if (seen.has(identity)) {
       continue;
     }
-    candidates.push({ owner: parsed.owner, ownerKey, ref: `refs/remotes/${remoteName}/${branch}` });
+    seen.add(identity);
+    candidates.push(fork);
   }
-  if (candidates.length === 0) {
-    return undefined;
-  }
-  // for-each-ref covers packed refs without requiring the worker's filesystem-ref context.
-  const remoteRefs = await gitOutput(root, [
-    "for-each-ref",
-    "--format=%(refname)",
-    "refs/remotes/",
-  ]);
-  if (!remoteRefs) {
-    return undefined;
-  }
-  const held = new Set(remoteRefs.split("\n"));
-  // Filter by the held branch ref before deduplicating owners: the same owner's
-  // other remote without the branch must not evict the one holding it.
-  const owners: string[] = [];
-  const seen = new Set<string>();
-  for (const candidate of candidates) {
-    if (!held.has(candidate.ref) || seen.has(candidate.ownerKey)) {
-      continue;
-    }
-    seen.add(candidate.ownerKey);
-    owners.push(candidate.owner);
-  }
-  return owners.length > 0 ? owners : undefined;
+  return candidates;
 }
 
 export async function readCheckoutGitContext(
@@ -301,28 +268,23 @@ export async function readCheckoutGitContext(
   if (!remote) {
     return null;
   }
+  const remoteHost = publicRemote ? "github.com" : githubHost;
   const preparedDefaultRef = readDefaultRef(head);
   const defaultRef =
     preparedDefaultRef === undefined
       ? await gitOutput(root, ["symbolic-ref", "--short", "refs/remotes/origin/HEAD"])
       : preparedDefaultRef;
   const defaultBranch = defaultRef?.replace(/^origin\//, "");
-  const selectedBranch = branch === "HEAD" ? null : branch;
-  // Alternate remotes are only meaningful on the host the checkout itself resolves to.
-  const effectiveHost = publicRemote ? "github.com" : githubHost;
-  const alternateHeadOwners = await readAlternateHeadOwners(
-    root,
-    selectedBranch,
-    remote.owner,
-    effectiveHost,
-  );
+  const forkHeadCandidates = canDiscoverAlternateForkHeads(branch, defaultBranch)
+    ? await readForkHeadCandidates(root, { branch, base: remote, head, remoteHost })
+    : [];
   return {
     ...remote,
     ...(!publicRemote ? { host: githubHost } : {}),
-    branch: selectedBranch,
+    branch: branch === "HEAD" ? null : branch,
     root,
     ...(defaultBranch ? { defaultBranch } : {}),
-    ...(alternateHeadOwners ? { alternateHeadOwners } : {}),
+    ...(forkHeadCandidates.length > 0 ? { forkHeadCandidates } : {}),
   };
 }
 
