@@ -12,12 +12,13 @@ function entryWithLabel(label: string): TranscriptAttachmentEntry {
     item: {
       type: "attachment",
       attachment: {
-        name: "cafe.png",
-        mimeType: "image/png",
         url: "openclaw://attachment/cafe.png",
+        kind: "image",
+        label,
+        mimeType: "image/png",
       },
     },
-  } as TranscriptAttachmentEntry;
+  };
 }
 
 describe("transcriptAttachmentMatches", () => {
