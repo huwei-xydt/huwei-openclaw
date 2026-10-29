@@ -265,6 +265,16 @@ it("leaves composing input untouched until the operator confirms the completed v
   await pressKey(element, "Enter");
   expect(props.onChange).toHaveBeenCalledExactlyOnceWith([sonnet, "local/模型"]);
 });
+it("matches canonically equivalent Unicode when filtering options", async () => {
+  // Stored NFD (e + combining acute); operator types NFC (precomposed e-acute).
+  const nfdLabel = "Caf\u0301 notes";
+  const { element } = await createFixture([["cafe", nfdLabel]]);
+  expect(nfdLabel).not.toBe("Caf\u00e9 notes");
+  await typeText(element, "Caf\u00e9");
+  expect(values(element, "option")).toEqual(["fixture/cafe"]);
+  await typeText(element, "zzz");
+  expect(values(element, "option")).toEqual([]);
+});
 it("stays inert while disabled", async () => {
   const { element, props } = await createMultiSelect({ disabled: true });
   expect(input(element).disabled).toBe(true);
