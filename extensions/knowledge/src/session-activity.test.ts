@@ -188,9 +188,12 @@ it("session activity titles truncate without leaving a lone surrogate half", () 
     db.exec(`CREATE TABLE session_activity (sequence INTEGER PRIMARY KEY, scope TEXT, agent_id TEXT,
       session_key TEXT, session_id TEXT, call_id TEXT, operation TEXT, action TEXT, at TEXT, record_id TEXT,
       revision INTEGER, UNIQUE(scope,agent_id,session_id,call_id,operation,action,record_id,revision))`);
-    const longTitle = `${"A".repeat(199)}😀 trailer`;
+    // Envelope maxLength counts code points, not UTF-16 units: 199 A's + one emoji is
+    // exactly 200 code points (201 units), so vault scan accepts it and a hard
+    // slice(0, 200) would split the pair at the stored title's last code unit.
+    const boundaryTitle = `${"A".repeat(199)}😀`;
     const active = [
-      { id: "a", title: longTitle, kind: "page", type: "note", revision: 1 },
+      { id: "a", title: boundaryTitle, kind: "page", type: "note", revision: 1 },
     ] as LoadedRecord[];
     const o = origin();
     appendActivity(db, "private", "main", o, "write", active);
@@ -199,8 +202,6 @@ it("session activity titles truncate without leaving a lone surrogate half", () 
       sessionId: o.sessionId,
     });
     expect(out.items[0]!.title).toBe("A".repeat(199));
-    expect(out.items[0]!.title.length).toBeLessThanOrEqual(200);
-    expect(/[\uD800-\uDBFF]$/.test(out.items[0]!.title)).toBe(false);
   } finally {
     db.close();
   }
