@@ -54,9 +54,6 @@ export function resolveProjectChip(params: {
     recents: normalizedQuery ? [] : params.recents.filter((recent) => recent.kind !== "project"),
     showWorkspace:
       !normalizedQuery ||
-      pathDisplayName(params.workspace)
-        .toLowerCase()
-        .normalize("NFC")
-        .includes(normalizedQuery),
+      pathDisplayName(params.workspace).toLowerCase().normalize("NFC").includes(normalizedQuery),
   };
 }
