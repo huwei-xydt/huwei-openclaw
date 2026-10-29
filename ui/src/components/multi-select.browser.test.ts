@@ -267,9 +267,15 @@ it("leaves composing input untouched until the operator confirms the completed v
 });
 it("matches canonically equivalent Unicode when filtering options", async () => {
   // Stored NFD (e + combining acute); operator types NFC (precomposed e-acute).
-  const nfdLabel = "Caf\u0301 notes";
-  const { element } = await createFixture([["cafe", nfdLabel]]);
+  const nfdLabel = "Cafe\u0301 notes";
+  const { element } = await createMultiSelect({
+    options: [{ value: "fixture/cafe", label: nfdLabel }],
+    value: [],
+    isExcluded: () => false,
+    allowCustom: false,
+  });
   expect(nfdLabel).not.toBe("Caf\u00e9 notes");
+  expect(nfdLabel.normalize("NFC")).toBe("Caf\u00e9 notes");
   await typeText(element, "Caf\u00e9");
   expect(values(element, "option")).toEqual(["fixture/cafe"]);
   await typeText(element, "zzz");
