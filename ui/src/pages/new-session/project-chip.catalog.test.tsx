@@ -173,7 +173,7 @@ it("keeps project search live through catalog reads and retires invalidated rows
 
 it("matches canonically equivalent Unicode in local project search", async () => {
   const fixture = createRepositoryFixture();
-  const { browser, state: place, context, gateway, changed, request } = fixture;
+  const { browser, state: place, context, gateway, request } = fixture;
   const loaded = createDeferred<ProjectsListResult>();
   request.mockImplementationOnce(() => loaded.promise);
   Object.assign(gateway, {
@@ -182,7 +182,7 @@ it("matches canonically equivalent Unicode in local project search", async () =>
     connectionEpoch: 1,
   });
   Object.assign(context.gateway.snapshot.hello!, { features: { methods: ["projects.list"] } });
-  const popoverOpen = vi.spyOn(browser, "popoverOpen").mockReturnValue(true);
+  vi.spyOn(browser, "popoverOpen").mockReturnValue(true);
   vi.spyOn(place, "folder", "get").mockReturnValue("");
   vi.spyOn(place, "workspacePath").mockReturnValue("/home/openclaw/.openclaw/workspace");
   vi.spyOn(place, "browseAvailable").mockReturnValue(true);
