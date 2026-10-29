@@ -182,6 +182,30 @@ it("activity filters current eligibility before pagination and keeps partitions 
   }
 });
 
+it("session activity titles truncate without leaving a lone surrogate half", () => {
+  const db = new DatabaseSync(":memory:");
+  try {
+    db.exec(`CREATE TABLE session_activity (sequence INTEGER PRIMARY KEY, scope TEXT, agent_id TEXT,
+      session_key TEXT, session_id TEXT, call_id TEXT, operation TEXT, action TEXT, at TEXT, record_id TEXT,
+      revision INTEGER, UNIQUE(scope,agent_id,session_id,call_id,operation,action,record_id,revision))`);
+    const longTitle = `${"A".repeat(199)}😀 trailer`;
+    const active = [
+      { id: "a", title: longTitle, kind: "page", type: "note", revision: 1 },
+    ] as LoadedRecord[];
+    const o = origin();
+    appendActivity(db, "private", "main", o, "write", active);
+    const out = sessionActivity(db, "private", "main", active, {
+      sessionKey: o.sessionKey,
+      sessionId: o.sessionId,
+    });
+    expect(out.items[0]!.title).toBe("A".repeat(199));
+    expect(out.items[0]!.title.length).toBeLessThanOrEqual(200);
+    expect(/[\uD800-\uDBFF]$/.test(out.items[0]!.title)).toBe(false);
+  } finally {
+    db.close();
+  }
+});
+
 it("read recording failure does not fail a successful read; revoked authority still fails delivery", async () => {
   const dir = tempDirs.make("knowledge-activity-failure-");
   const { config } = await createVault(dir);
