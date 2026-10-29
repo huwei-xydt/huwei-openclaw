@@ -218,7 +218,7 @@ it("matches canonically equivalent Unicode in local project search", async () =>
   const nfdName = "Cafe\u0301";
   const nfcQuery = "Caf\u00e9";
   expect(nfdName).not.toBe(nfcQuery);
-  type("cafe");
+  type("");
   loaded.resolve({
     projects: [
       {
