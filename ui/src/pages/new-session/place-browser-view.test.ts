@@ -40,7 +40,6 @@ describe("filterBrowserEntries", () => {
 describe("resolvePlaceBrowserView", () => {
   const entries = [{ name: "packages", path: "/workspace/packages" }];
   const listing = { path: "/workspace", home: "/home/user", entries } satisfies FsListDirResult;
-
   it("resolves an unmatched prefix", () => {
     expect(resolvePlaceBrowserView({ listing, draft: "/workspace/zzz", loading: false })).toEqual({
       entries: [],
