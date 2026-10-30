@@ -158,9 +158,12 @@ export function filterCommandPaletteItems(params: {
   if (!params.query) {
     return baseItems;
   }
-  const query = normalizeLowercaseStringOrEmpty(params.query);
+  // Canonically equivalent names may arrive in either Unicode form; compare on NFC.
+  const fold = (value: string | undefined) =>
+    normalizeLowercaseStringOrEmpty(value).normalize("NFC");
+  const query = fold(params.query);
   const matchRank = (item: CommandPaletteItem) => {
-    const label = normalizeLowercaseStringOrEmpty(item.label);
+    const label = fold(item.label);
     if (label === query) {
       return 3;
     }
@@ -168,10 +171,9 @@ export function filterCommandPaletteItems(params: {
       return 2;
     }
     return label.includes(query) ||
-      normalizeLowercaseStringOrEmpty(item.description).includes(query) ||
-      normalizeLowercaseStringOrEmpty(item.searchText).includes(query) ||
-      (params.primaryModelSearch &&
-        normalizeLowercaseStringOrEmpty(item.primaryModel).includes(query))
+      fold(item.description).includes(query) ||
+      fold(item.searchText).includes(query) ||
+      (params.primaryModelSearch && fold(item.primaryModel).includes(query))
       ? 1
       : 0;
   };
