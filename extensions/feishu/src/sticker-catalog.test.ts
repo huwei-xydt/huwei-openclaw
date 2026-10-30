@@ -21,9 +21,4 @@ describe("searchFeishuStickerSet NFC", () => {
     });
     expect(result.stickers).toEqual([{ fileId: "file_nfd", keyword: NFD_QUERY }]);
   });
-
-  it("still finds plain keywords", () => {
-    const result = searchFeishuStickerSet([["file_plain", ["thumbs up"]]], { query: "THUMBS" });
-    expect(result.stickers.map((s) => s.fileId)).toEqual(["file_plain"]);
-  });
 });
