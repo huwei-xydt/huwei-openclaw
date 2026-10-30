@@ -31,6 +31,25 @@ describe("filterBrowserEntries", () => {
   ])("ranks spelled, exact, prefix, then substring matches for %s", (prefix, expectedNames) => {
     expect(filteredEntries(prefix).map((entry) => entry.name)).toEqual(expectedNames);
   });
+
+  it("matches a canonically equivalent NFC prefix against a stored NFD folder name", () => {
+    // Stored NFD (e + combining acute); operator types the NFC precomposed form.
+    const nfdName = "Cafe\u0301-notes";
+    const nfcPrefix = "Caf\u00e9";
+    expect(nfdName).not.toBe("Caf\u00e9-notes");
+    expect(nfdName.normalize("NFC")).toBe("Caf\u00e9-notes");
+    const nfdEntries = [
+      { name: nfdName, path: `/workspace/${nfdName}` },
+      { name: "other", path: "/workspace/other" },
+    ] satisfies FsDirEntry[];
+    expect(
+      resolvePlaceBrowserView({
+        listing: { path: "/workspace", home: "/", entries: nfdEntries },
+        draft: `/workspace/${nfcPrefix}`,
+        loading: false,
+      }).entries.map((entry) => entry.name),
+    ).toEqual([nfdName]);
+  });
 });
 
 describe("resolvePlaceBrowserView", () => {
