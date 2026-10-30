@@ -166,8 +166,10 @@ function WorkspaceContents(props: { workspace: SessionWorkspaceProps }) {
     const browser = workspace.list?.browser;
     const entries = browser?.entries ?? [];
     const search = normalizeOptionalString(workspace.browserSearch)?.toLowerCase() ?? "";
+    // Canonically equivalent names may arrive in either Unicode form; compare on NFC.
+    const matchQuery = search.normalize("NFC");
     const matches = (...values: (string | undefined)[]) =>
-      values.some((value) => value?.toLowerCase().includes(search));
+      values.some((value) => value?.toLowerCase().normalize("NFC").includes(matchQuery));
     const modified = files.filter((file) => file.kind === "modified");
     const readFiles = files.filter((file) => file.kind === "read");
     const filters = [

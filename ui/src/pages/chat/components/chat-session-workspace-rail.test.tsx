@@ -434,6 +434,27 @@ describe("session workspace path actions", () => {
     expect(mount.querySelector('button[aria-label="src/edited.ts"]')).not.toBeNull();
   });
 
+  it("matches a canonically equivalent NFC search against stored NFD names", async () => {
+    // Stored NFD (e + combining acute); operator types the NFC precomposed form.
+    const nfdName = "Cafe\u0301-notes.md";
+    const nfcPrefix = "Caf\u00e9";
+    expect(nfdName).not.toBe("Caf\u00e9-notes.md");
+    expect(nfdName.normalize("NFC")).toBe("Caf\u00e9-notes.md");
+    const workspace = createWorkspace({
+      list: {
+        files: [file(nfdName, "read"), file("other.md", "read")],
+      },
+    });
+    const { container: mount, update } = await mountWorkspace(workspace);
+    expect(fileNames(mount)).toContain(nfdName);
+    expect(fileNames(mount)).toContain("other.md");
+
+    workspace.browserSearch = nfcPrefix;
+    update(workspace);
+
+    expect(fileNames(mount)).toEqual([nfdName]);
+  });
+
   it.each([
     ["changed", true, 1],
     ["read", true, 1],
