@@ -169,6 +169,31 @@ describe("SessionDiffPanel", () => {
     },
   );
 
+  it("matches NFD jump paths against NFC search queries", async () => {
+    setNativeGatewayTestState(null);
+    setupDesktopResizeObserver();
+    const { panel, update } = mountPanel();
+    // Git can report NFD paths (macOS); the jump box must still accept NFC queries.
+    update({
+      mobile: false,
+      loader: async () => namedFileResult(["src/Mu\u0308ller.ts", "src/other.ts"]),
+    });
+    await settlePanel(panel);
+    panel.querySelector<HTMLButtonElement>(".session-diff__jump")!.click();
+    await waitForSolid(() =>
+      expect(panel.querySelector('button[data-value="jump:0"]')).not.toBeNull(),
+    );
+    const search = panel.querySelector<HTMLInputElement>("input.session-diff-menu__search")!;
+    search.value = "M\u00fcller";
+    search.dispatchEvent(new Event("input", { bubbles: true }));
+    await waitForSolid(() => {
+      expect(panel.querySelector('button[data-value="jump:0"]')).not.toBeNull();
+      expect(panel.querySelector('button[data-value="jump:1"]')).toBeNull();
+      expect(panel.querySelector("#no-results")).toBeNull();
+      expect(panel.querySelector(".session-diff-menu .muted")).toBeNull();
+    });
+  });
+
   it.each([
     { saved: { split: true, wrap: false }, mode: "split", split: true },
     { saved: { split: false, wrap: false }, mode: "unified", split: false },
