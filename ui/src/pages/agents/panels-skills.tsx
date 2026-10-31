@@ -172,6 +172,11 @@ function AgentSkillsContent(
       ? rawSkills().filter((skill) => isWorkshopSkill(skill) || allowSet().has(skill.name)).length
       : rawSkills().length,
   );
+  // Only a settled inventory for this agent is an empty catalog. Pending and
+  // failed reads keep their own loading/error signals instead of claiming zero skills.
+  const showInventoryEmpty = createMemo(
+    () => filtered().length === 0 && !params.pending && !params.readError && Boolean(params.report),
+  );
 
   return (
     <>
@@ -252,7 +257,7 @@ function AgentSkillsContent(
             />
           }
         />
-        {filtered().length === 0 ? (
+        {showInventoryEmpty() ? (
           <SettingsEmpty message={t("agents.skillsPanel.empty")} />
         ) : (
           <div class="agents-panel-body agent-skills-groups">

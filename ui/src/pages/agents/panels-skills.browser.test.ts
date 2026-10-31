@@ -255,6 +255,51 @@ describe("agents skills panel (browser)", () => {
     await view.text(["Synthetic fresh skill"], ["Synthetic skills failure"]);
   });
 
+  it("does not claim an empty skill inventory while the initial read is pending", async () => {
+    const pending = deferred<SkillStatusReport>();
+    const view = mountSkills([], {
+      agentSkillsReport: null,
+      agentSkillsAgentId: null,
+      agentSkillsRead: { agentId: "main", result: pending.promise },
+    });
+    await view.text(["Loading"], ["No skills found."]);
+    pending.resolve({
+      workspaceDir: "/tmp/workspace",
+      managedSkillsDir: "/tmp/skills",
+      skills: [createSkill({ name: "Late skill" })],
+    });
+    await view.text(["Late skill"], ["No skills found."]);
+  });
+
+  it("does not claim an empty skill inventory after a failed read without a cache", async () => {
+    const initial = deferred<SkillStatusReport>();
+    const view = mountSkills([], {
+      agentSkillsReport: null,
+      agentSkillsAgentId: null,
+      agentSkillsRead: { agentId: "main", result: initial.promise },
+    });
+    initial.reject(new Error("Synthetic skills failure"));
+    await view.text(["Synthetic skills failure"], ["No skills found."]);
+  });
+
+  it("still reports a settled empty inventory and a filter miss", async () => {
+    const empty = mountSkills([], {
+      agentSkillsReport: {
+        workspaceDir: "/tmp/workspace",
+        managedSkillsDir: "/tmp/skills",
+        skills: [],
+      },
+      agentSkillsAgentId: "main",
+    });
+    await empty.text(["No skills found."]);
+
+    const filtered = mountSkills([createSkill({ name: "Installed Distractor" })], {
+      filter: "no matching skill",
+    });
+    await filtered.text(["0 shown", "No skills found."]);
+    expect(filtered.rows()).toHaveLength(0);
+  });
+
   it.each(["agent", "connection"])(
     "renders a replacement %s scope while the retired read stays pending",
     async (replacement) => {
