@@ -116,8 +116,39 @@ it("rejects idempotent creation without a principal or device namespace", async 
   const { execute, call } = createFixture();
   const anonymous = await call({ agentId: "main", idempotencyKey: "create-once" }, null as never);
 
-  expectRejected(anonymous, "INVALID_REQUEST", expect.stringContaining("identity"));
+  expectRejected(
+    anonymous,
+    "INVALID_REQUEST",
+    expect.stringContaining("deterministic session key"),
+  );
   expect(execute).not.toHaveBeenCalled();
+});
+
+it("names the deterministic key alternative for agent-runtime callers", async () => {
+  const { client, execute, call } = createFixture();
+  const agentRuntime = await call(
+    { agentId: "main", idempotencyKey: "create-once" },
+    {
+      ...client,
+      authenticatedUserId: undefined,
+      connect: { ...client.connect, device: undefined },
+      internal: {
+        agentRuntimeIdentity: {
+          kind: "agentRuntime",
+          agentId: "main",
+          sessionKey: "agent:main:source",
+        } as never,
+      },
+    },
+  );
+
+  expectRejected(
+    agentRuntime,
+    "INVALID_REQUEST",
+    expect.stringContaining("deterministic session key"),
+  );
+  expect(execute).not.toHaveBeenCalled();
+  expect(client.authenticatedUserId).toBe("owner");
 });
 
 it("pins in-flight request identity beyond retention and independent of global dedupe pruning", async () => {

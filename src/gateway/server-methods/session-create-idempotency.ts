@@ -55,7 +55,7 @@ export function idempotentSessionCreate(handler: GatewayRequestHandler): Gateway
       respondError(
         respond,
         ErrorCodes.INVALID_REQUEST,
-        "idempotent session creation requires an authenticated principal or device identity",
+        "idempotent session creation requires an authenticated principal or device identity; identity-only callers (including agent-runtime plugin tools) should use a deterministic session key instead",
       );
       return;
     }
