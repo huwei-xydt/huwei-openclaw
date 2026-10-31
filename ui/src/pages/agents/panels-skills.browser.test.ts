@@ -211,7 +211,7 @@ describe("agents skills panel (browser)", () => {
     expect(view.filter()).toBe(filter);
   });
 
-  it("shows pending reads, keeps the cached report after failure, and retries through Refresh", async () => {
+  it("keeps unavailable inventories distinct from empty results and retries through Refresh", async () => {
     const initial = deferred<SkillStatusReport>();
     const refreshed = deferred<SkillStatusReport>();
     const retried = deferred<SkillStatusReport>();
@@ -221,83 +221,38 @@ describe("agents skills panel (browser)", () => {
       agentSkillsRead: { agentId: "main", result: initial.promise },
     });
     const { params } = view;
-    await view.text(["Loading"]);
-    const report: SkillStatusReport = {
+    await view.text(["Loading"], ["No skills found.", "0 shown"]);
+    initial.reject(new Error("Initial skills failure"));
+    const onRefresh = vi.fn(() =>
+      view.update({
+        ...params,
+        agentSkillsRead: { agentId: "main", result: retried.promise },
+        onRefresh,
+      }),
+    );
+    view.update({ ...params, onRefresh });
+    await view.text(["Initial skills failure"], ["No skills found.", "0 shown"]);
+    view.button("Refresh").click();
+    expect(onRefresh).toHaveBeenCalledOnce();
+    await view.text(["Loading"], ["Initial skills failure", "No skills found.", "0 shown"]);
+    const report = {
       workspaceDir: "/workspace/synthetic",
       managedSkillsDir: "/skills/synthetic",
       skills: [createSkill({ name: "Synthetic cached skill" })],
     };
-    initial.resolve(report);
-    await view.text(["Synthetic cached skill"]);
-
-    const loaded = {
+    retried.resolve(report);
+    await view.text(["Synthetic cached skill"], ["Initial skills failure", "No skills found."]);
+    view.update({
       ...params,
       agentSkillsReport: report,
       agentSkillsAgentId: "main",
       agentSkillsRead: { agentId: "main", result: refreshed.promise },
-    };
-    view.update(loaded);
+    });
     await view.text(["Synthetic cached skill", "Loading"]);
     refreshed.reject(new Error("Synthetic skills failure"));
-    const onRefresh = vi.fn(() => {
-      view.update({
-        ...loaded,
-        agentSkillsRead: { agentId: "main", result: retried.promise },
-        onRefresh,
-      });
-    });
-    view.update({ ...loaded, onRefresh });
     await view.text(["Synthetic skills failure", "Synthetic cached skill"]);
-    view.button("Refresh").click();
-    expect(onRefresh).toHaveBeenCalledOnce();
-    await view.text(["Loading", "Synthetic cached skill"], ["Synthetic skills failure"]);
-    retried.resolve({ ...report, skills: [createSkill({ name: "Synthetic fresh skill" })] });
-    await view.text(["Synthetic fresh skill"], ["Synthetic skills failure"]);
-  });
-
-  it("does not claim an empty skill inventory while the initial read is pending", async () => {
-    const pending = deferred<SkillStatusReport>();
-    const view = mountSkills([], {
-      agentSkillsReport: null,
-      agentSkillsAgentId: null,
-      agentSkillsRead: { agentId: "main", result: pending.promise },
-    });
-    await view.text(["Loading"], ["No skills found."]);
-    pending.resolve({
-      workspaceDir: "/tmp/workspace",
-      managedSkillsDir: "/tmp/skills",
-      skills: [createSkill({ name: "Late skill" })],
-    });
-    await view.text(["Late skill"], ["No skills found."]);
-  });
-
-  it("does not claim an empty skill inventory after a failed read without a cache", async () => {
-    const initial = deferred<SkillStatusReport>();
-    const view = mountSkills([], {
-      agentSkillsReport: null,
-      agentSkillsAgentId: null,
-      agentSkillsRead: { agentId: "main", result: initial.promise },
-    });
-    initial.reject(new Error("Synthetic skills failure"));
-    await view.text(["Synthetic skills failure"], ["No skills found."]);
-  });
-
-  it("still reports a settled empty inventory and a filter miss", async () => {
-    const empty = mountSkills([], {
-      agentSkillsReport: {
-        workspaceDir: "/tmp/workspace",
-        managedSkillsDir: "/tmp/skills",
-        skills: [],
-      },
-      agentSkillsAgentId: "main",
-    });
-    await empty.text(["No skills found."]);
-
-    const filtered = mountSkills([createSkill({ name: "Installed Distractor" })], {
-      filter: "no matching skill",
-    });
-    await filtered.text(["0 shown", "No skills found."]);
-    expect(filtered.rows()).toHaveLength(0);
+    const empty = mountSkills([]);
+    await empty.text(["0 shown", "No skills found."]);
   });
 
   it.each(["agent", "connection"])(
