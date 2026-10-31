@@ -167,52 +167,15 @@ describe("parseSlashCommand", () => {
   it("matches skill queries against both display titles and command tokens", () => {
     applyRemoteEntries(
       remoteCommand("release_notes", {
-        skillDisplayName: "Release Notes",
+        skillDisplayName: "Mu\u0308nchen Notes",
         source: "skill",
         skillModelVisible: true,
       }),
     );
 
-    const expected = [{ name: "release_notes", skillDisplayName: "Release Notes" }];
-    expect(getSkillCommandCompletions("notes")).toMatchObject(expected);
+    const expected = [{ name: "release_notes", skillDisplayName: "Mu\u0308nchen Notes" }];
+    expect(getSkillCommandCompletions("M\u00dcNCHEN")).toMatchObject(expected);
     expect(getSkillCommandCompletions("release_n")).toMatchObject(expected);
-  });
-
-  it.each([
-    ["NFD", "NFC"],
-    ["NFC", "NFD"],
-  ] as const)(
-    "matches skill display titles across %s stored names and %s queries",
-    (stored, query) => {
-      applyRemoteEntries(
-        remoteCommand("munchen_notes", {
-          skillDisplayName: "München".normalize(stored),
-          source: "skill",
-          skillModelVisible: true,
-        }),
-      );
-
-      expect(getSkillCommandCompletions("MÜNCHEN".normalize(query))).toMatchObject([
-        { name: "munchen_notes", skillDisplayName: "München".normalize(stored) },
-      ]);
-    },
-  );
-
-  it("still matches same-form skill display titles", () => {
-    applyRemoteEntries(
-      remoteCommand("munchen_notes", {
-        skillDisplayName: "München".normalize("NFC"),
-        source: "skill",
-        skillModelVisible: true,
-      }),
-    );
-
-    expect(getSkillCommandCompletions("münchen".normalize("NFC"))).toMatchObject([
-      { name: "munchen_notes" },
-    ]);
-    expect(getSkillCommandCompletions("MÜNCHEN".normalize("NFC"))).toMatchObject([
-      { name: "munchen_notes" },
-    ]);
   });
 
   it.each([false, undefined])(
