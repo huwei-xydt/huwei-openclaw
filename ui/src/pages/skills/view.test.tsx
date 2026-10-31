@@ -230,6 +230,31 @@ describe("renderSkills", () => {
     expect(restored.every((group) => group.open)).toBe(true);
   });
 
+  it("matches inventory filter queries across NFC and NFD skill names", async () => {
+    const { container, query, render, text } = createView();
+    const NFD_NAME = "München notes".normalize("NFD");
+    const report = skillReport([
+      createSkill({ skillKey: "munchen", name: NFD_NAME }),
+      createSkill({ skillKey: "home", name: "Home notes" }),
+    ]);
+    render({ report });
+    await Promise.resolve();
+    expect(container.querySelectorAll(".plugins-item")).toHaveLength(2);
+    render({ report, filter: "münchen".normalize("NFC") });
+    await Promise.resolve();
+    expect(container.querySelectorAll(".plugins-item")).toHaveLength(1);
+    expect(text()).toContain(NFD_NAME);
+    expect(text()).not.toContain("Home notes");
+    render({ report, filter: "münchen".normalize("NFD") });
+    await Promise.resolve();
+    expect(container.querySelectorAll(".plugins-item")).toHaveLength(1);
+    expect(text()).toContain(NFD_NAME);
+    render({ report, filter: "" });
+    await Promise.resolve();
+    expect(container.querySelectorAll(".plugins-item")).toHaveLength(2);
+    expect(query('input[name="skills-filter"]')).not.toBeNull();
+  });
+
   it("offers only an installer satisfying a missing alternative", async () => {
     const { container, query, render } = createView(true);
     const onInstall = vi.fn();
