@@ -74,4 +74,20 @@ describe("skill mention tokenizer", () => {
       names: ["release_notes"],
     });
   });
+
+  it("keeps uppercase ASCII shell variables literal even when a matching skill is loaded", () => {
+    replaceSlashCommands([skill("home_notes", "Home Notes")]);
+    const menu = createSkillMenu();
+    for (const draft of ["Print $HOME", "$PATH", "$EDITOR"]) {
+      expect(updateAndRead(menu, draft, draft.length), draft).toEqual({
+        open: false,
+        names: [],
+      });
+    }
+    // Lowercase skill references still open and can select the command token.
+    expect(updateAndRead(menu, "$home", "$home".length)).toEqual({
+      open: true,
+      names: ["home_notes"],
+    });
+  });
 });
