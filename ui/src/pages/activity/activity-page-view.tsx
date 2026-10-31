@@ -115,7 +115,7 @@ function matchesEntry(entry: ActivityEntry, needle: string): boolean {
       .filter(Boolean)
       .join(" "),
   ).normalize("NFC");
-  return haystack.includes(needle.normalize("NFC"));
+  return haystack.includes(needle);
 }
 
 const STATUS_KINDS = { running: "warn", done: "ok", error: "danger" } as const satisfies Record<
