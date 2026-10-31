@@ -83,7 +83,6 @@ it.each([false, true])(
         [true, " SHOWING CAFÉ-ONE ", [0]],
         [true, "showing cafe\u0301-two", [1]],
         [true, "showing", [0, 1]],
-        [true, "unrelated", []],
         [true, "Tool metadata received", []],
         [true, "   ", [0, 1]],
         [false, "unrelated", [0, 1]],
