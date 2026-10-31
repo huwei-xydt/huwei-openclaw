@@ -12,6 +12,7 @@ import type {
 
 afterEach(() => vi.restoreAllMocks());
 const hello = { agentId: "main", idempotencyKey: "create-once", message: "hello" };
+type TestConnection = NonNullable<GatewayRequestHandlerOptions["client"]>;
 
 function createFixture(handler?: GatewayRequestHandler) {
   const context = { dedupe: new Map() } as GatewayRequestContext;
@@ -37,11 +38,11 @@ function createFixture(handler?: GatewayRequestHandler) {
       role: "operator",
       scopes: ["operator.admin", "operator.write"],
     },
-  } satisfies NonNullable<GatewayRequestHandlerOptions["client"]>;
+  } satisfies TestConnection;
 
   function invoke(
     params: Record<string, unknown> = { agentId: "main", idempotencyKey: "create-once" },
-    connection: typeof client = client,
+    connection: TestConnection = client,
   ) {
     const respond = vi.fn<RespondFn>();
     const request: GatewayRequestHandlerOptions = {
