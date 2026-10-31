@@ -8,7 +8,9 @@ import {
 } from "../../../lib/chat/commands.ts";
 import { paneDomId } from "./chat-composer-dom.ts";
 
-const SKILL_MENTION_CHAR = /[-a-zA-Z0-9_:]/u;
+// Display titles may use any script (including NFD combining marks);
+// command tokens stay ASCII after selection.
+const SKILL_MENTION_CHAR = /[\p{L}\p{M}\p{N}_:-]/u;
 
 type SkillMentionTarget = {
   start: number;
@@ -62,7 +64,8 @@ function findSkillMentionTarget(value: string, caret: number): SkillMentionTarge
     referenceEnd -= 1;
   }
   const query = value.slice(start, referenceEnd);
-  if (query.length > 0 && !/[a-z]/u.test(query)) {
+  // Require a letter so bare "$123"/"$:" do not open the menu on every dollar.
+  if (query.length > 0 && !/\p{L}/u.test(query)) {
     return null;
   }
   return { start: dollar, end: referenceEnd, query };
