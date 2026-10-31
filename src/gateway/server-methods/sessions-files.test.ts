@@ -405,6 +405,11 @@ describe("sessions.files RPC handlers", () => {
   it.each([
     ["München", "Mu\u0308nchen.md"],
     ["Mu\u0308nchen", "München.md"],
+    // Lowercasing a word-final capital sigma yields final ς; typed Σ/σ must still match.
+    ["Σ", "ΕΛΕΓΧΟΣ.md"],
+    ["σ", "ΕΛΕΓΧΟΣ.md"],
+    ["ς", "ΕΛΕΓΧΟΣ.md"],
+    ["ελεγχος", "ΕΛΕΓΧΟΣ.md"],
   ])(
     "finds a canonically equivalent workspace filename without rewriting it (%s)",
     async (query, filename) => {

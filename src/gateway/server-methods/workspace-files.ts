@@ -13,6 +13,7 @@ import { insideGitCheckout } from "../../agents/worktrees/git.js";
 import { FsSafeError } from "../../infra/fs-safe.js";
 import { isPathInside } from "../../infra/path-guards.js";
 import { BROWSER_IMAGE_MIME_TYPES } from "../../shared/browser-image-mime-types.js";
+import { foldSearchSigma } from "../../shared/session-search-text.js";
 import { WORKSPACE_PREVIEW_MAX_BYTES } from "../workspace-file-limits.js";
 import { resolveSessionFileReadTarget, type SessionFileReadBoundary } from "./session-file-read.js";
 import {
@@ -294,7 +295,7 @@ export async function listSessionWorkspaceFiles(
     if (search) {
       const entries: SessionFileBrowserEntry[] = [];
       // Normalize comparison text only; on-disk filenames stay original.
-      const query = search.toLowerCase().normalize("NFC");
+      const query = foldSearchSigma(search.toLowerCase().normalize("NFC"));
       let visitedEntries = 0;
       let truncated = false;
       const shouldStop = (): boolean => {
@@ -318,7 +319,7 @@ export async function listSessionWorkspaceFiles(
           }
           visitedEntries += 1;
           const browserPath = dir ? `${dir}/${dirent.name}` : dirent.name;
-          if (browserPath.toLowerCase().normalize("NFC").includes(query)) {
+          if (foldSearchSigma(browserPath.toLowerCase().normalize("NFC")).includes(query)) {
             const entry = toWorkspaceBrowserEntry(browserPath, dirent, relevance);
             if (entry) {
               entries.push(entry);

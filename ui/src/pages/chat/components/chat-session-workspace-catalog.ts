@@ -1,3 +1,4 @@
+import { foldSearchSigma } from "../../../../src/shared/session-search-text.ts";
 import type { SessionWorkspaceListResult } from "../../../api/types.ts";
 import { sessionWorkspaceFileKey } from "../../../lib/sessions/workspace.ts";
 import type {
@@ -207,14 +208,15 @@ export function workspaceCatalogSearch(
     return [];
   }
   // Canonically equivalent names may arrive in either Unicode form; compare on NFC.
-  const normalizedSearch = search.normalize("NFC");
+  // After lowercasing, word-final sigma becomes ς while typed Σ/σ stays σ; fold both.
+  const normalizedSearch = foldSearchSigma(search.normalize("NFC"));
   const catalog = projectWorkspaceCatalog(list);
   const results = new Map<string, WorkspaceCatalogFile>();
   for (const entry of [...catalog.session, ...catalog.project.values()]) {
     if (
       !("directory" in entry && entry.directory) &&
       [entry.name, entry.workspacePath, entry.path].some((value) =>
-        value?.toLowerCase().normalize("NFC").includes(normalizedSearch),
+        foldSearchSigma(value?.toLowerCase().normalize("NFC") ?? "").includes(normalizedSearch),
       )
     ) {
       results.set(entry.key, entry);

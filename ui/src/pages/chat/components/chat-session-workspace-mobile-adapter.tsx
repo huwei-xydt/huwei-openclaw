@@ -8,6 +8,7 @@ import {
   onSettled,
   Show,
 } from "solid-js";
+import { foldSearchSigma } from "../../../../src/shared/session-search-text.ts";
 import type { SessionWorkspaceListResult } from "../../../api/types.ts";
 import { fileKindForPath } from "../../../components/file-kind.ts";
 import { Icon, type IconName } from "../../../components/solid/icon.tsx";
@@ -340,8 +341,9 @@ export function MobileWorkspaceContents(props: {
     };
     const workspaceList = workspace.list;
     const searchQuery = workspace.browserSearch.trim().toLowerCase();
-    // The server echo check below stays byte-exact; local candidate matching compares NFC.
-    const matchQuery = searchQuery.normalize("NFC");
+    // The server echo check below stays byte-exact; local candidate matching compares NFC
+    // with final-sigma folded so typed Σ/σ matches a lowercased word-final ς.
+    const matchQuery = foldSearchSigma(searchQuery.normalize("NFC"));
     const browserPath = workspace.browserPath;
     const listed = workspaceList?.browser;
     const browser = searchQuery
@@ -353,7 +355,9 @@ export function MobileWorkspaceContents(props: {
         : workspace.cachedBrowser;
     const matches = (...values: (string | undefined)[]) =>
       !searchQuery ||
-      values.some((value) => value?.toLowerCase().normalize("NFC").includes(matchQuery));
+      values.some((value) =>
+        foldSearchSigma(value?.toLowerCase().normalize("NFC") ?? "").includes(matchQuery),
+      );
     const groups: SessionWorkspaceMobileGroup[] = [];
     const expandedGroups = workspace.mobileNavigation?.expandedGroups;
     if (!browserPath) {

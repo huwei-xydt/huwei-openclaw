@@ -530,3 +530,30 @@ test("search preserves the eager predicate's rows and order across vocabulary su
     expect(searchKeys(params), search).toEqual(expected);
   }
 });
+
+test("matches word-final Greek sigma titles when the query uses capital or medial sigma", () => {
+  const rows: [string, SessionEntry][] = [
+    [
+      "agent:main:sigma",
+      {
+        sessionId: "sigma",
+        updatedAt: now,
+        displayName: "ΕΛΕΓΧΟΣ",
+      },
+    ],
+    [
+      "agent:main:other",
+      {
+        sessionId: "other",
+        updatedAt: now,
+        displayName: "ΔΟΚΙΜΗ",
+      },
+    ],
+  ];
+  const { params } = searchFixture(rows, { modelSearchMayMatch: () => false });
+
+  for (const search of ["Σ", "σ", "ς", "ελεγχος", "ΕΛΕΓΧΟΣ"]) {
+    params.opts = { search };
+    expect(searchKeys(params), search).toEqual(["agent:main:sigma"]);
+  }
+});
