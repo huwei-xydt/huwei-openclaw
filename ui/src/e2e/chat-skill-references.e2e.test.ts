@@ -19,7 +19,6 @@ const command = (name: string, skillDisplayName?: string) => ({
 
 /** NFD title (M + combining diaeresis + uchen) vs ASCII command token. */
 const NFD_TITLE = "München";
-const NFC_TITLE = NFD_TITLE.normalize("NFC");
 
 suite.define(() => {
   it("references multiple skills inside a normal prompt and sends their raw names", async () => {
