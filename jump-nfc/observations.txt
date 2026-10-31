@@ -1,0 +1,8 @@
+baseline: openclaw/openclaw main (no jump NFC normalize)
+candidate: PR #188883 head c0ae08b47b0 (session-diff-menus.tsx jump filter)
+fixture: built Control UI e2e (mock Gateway sessions.diff)
+  NFD path: src/Mu\u0308ller.ts
+  NFC query: Müller
+
+before (main): rowCount=0 hasNoMatchNote=true mutedTexts=["No matching files"]
+after (candidate): rowCount=1 hasNoMatchNote=false rowTexts=[NFD path shown]
