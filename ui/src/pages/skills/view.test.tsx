@@ -198,11 +198,11 @@ describe("renderSkills", () => {
     },
   );
 
-  it("preserves retained group identity and restores removed groups when filtering", async () => {
+  it("preserves Unicode matches, raw detail targets and retained groups", async () => {
     const { container, render } = createView();
     const report = skillReport([
       createSkill({ skillKey: "ws", name: "Workspace Skill", source: "openclaw-workspace" }),
-      createSkill({ skillKey: "bi", name: "Weather", bundled: true }),
+      createSkill({ skillKey: "Cafe\u0301-key", name: "Cafe\u0301", bundled: true }),
       createSkill({ skillKey: "inst", name: "Installed Skill", source: "openclaw-managed" }),
     ]);
     const onDetailOpen = vi.fn();
@@ -213,46 +213,21 @@ describe("renderSkills", () => {
     expect(groups.every((group) => group.open)).toBe(true);
     groups[0]!.open = false;
     const row = groups[1]!.querySelector(".settings-row");
-    render({ report, filter: "weather", onDetailOpen });
+    render({ report, filter: "CAFÉ", onDetailOpen });
     await Promise.resolve();
     const remaining = container.querySelectorAll<HTMLDetailsElement>("details.skills-group");
     expect(remaining).toHaveLength(1);
     expect(remaining[0]).toBe(groups[1]);
     expect(remaining[0]!.open).toBe(true);
     expect(remaining[0]!.querySelector(".settings-row")).toBe(row);
-    expect(remaining[0]!.textContent).toContain("Weather");
+    expect(remaining[0]!.textContent).toContain("Cafe\u0301");
     remaining[0]!.querySelector<HTMLButtonElement>(".plugins-item__detail-button")!.click();
-    expect(onDetailOpen).toHaveBeenCalledExactlyOnceWith("bi");
+    expect(onDetailOpen).toHaveBeenCalledExactlyOnceWith("Cafe\u0301-key");
     render({ report });
     await Promise.resolve();
     const restored = [...container.querySelectorAll<HTMLDetailsElement>("details.skills-group")];
     expect(restored).toHaveLength(3);
     expect(restored.every((group) => group.open)).toBe(true);
-  });
-
-  it("matches inventory filter queries across NFC and NFD skill names", async () => {
-    const { container, query, render, text } = createView();
-    const NFD_NAME = "München notes".normalize("NFD");
-    const report = skillReport([
-      createSkill({ skillKey: "munchen", name: NFD_NAME }),
-      createSkill({ skillKey: "home", name: "Home notes" }),
-    ]);
-    render({ report });
-    await Promise.resolve();
-    expect(container.querySelectorAll(".plugins-item")).toHaveLength(2);
-    render({ report, filter: "münchen".normalize("NFC") });
-    await Promise.resolve();
-    expect(container.querySelectorAll(".plugins-item")).toHaveLength(1);
-    expect(text()).toContain(NFD_NAME);
-    expect(text()).not.toContain("Home notes");
-    render({ report, filter: "münchen".normalize("NFD") });
-    await Promise.resolve();
-    expect(container.querySelectorAll(".plugins-item")).toHaveLength(1);
-    expect(text()).toContain(NFD_NAME);
-    render({ report, filter: "" });
-    await Promise.resolve();
-    expect(container.querySelectorAll(".plugins-item")).toHaveLength(2);
-    expect(query('input[name="skills-filter"]')).not.toBeNull();
   });
 
   it("offers only an installer satisfying a missing alternative", async () => {
@@ -353,18 +328,18 @@ describe("renderSkills", () => {
     expect(onMutation).not.toHaveBeenCalled();
   });
 
-  it("keeps the remaining skill's status and details target when a skill leaves the disabled tab", async () => {
+  it("keeps status and detail targets after a Unicode-filtered row is enabled", async () => {
     const { container, query, render } = createView();
 
-    const passwordSkill = createSkill({ skillKey: "1password", name: "1Password", disabled: true });
+    const passwordSkill = createSkill({ skillKey: "1password", name: "Café Pass", disabled: true });
     const appleNotesSkill = createSkill({
       skillKey: "apple-notes",
-      name: "Apple Notes",
+      name: "Café Notes",
       disabled: true,
     });
     const report: SkillStatusReport = skillReport([passwordSkill, appleNotesSkill]);
 
-    render({ report, statusFilter: "disabled" });
+    render({ report, statusFilter: "disabled", filter: "Cafe\u0301" });
     await Promise.resolve();
 
     expect(container.querySelectorAll(".plugins-item [role=img]")).toHaveLength(2);
@@ -375,12 +350,12 @@ describe("renderSkills", () => {
     ]);
 
     const onDetailOpen = vi.fn();
-    render({ report: updatedReport, statusFilter: "disabled", onDetailOpen });
+    render({ report: updatedReport, filter: "Cafe\u0301", statusFilter: "disabled", onDetailOpen });
     await Promise.resolve();
 
     const row = query(".plugins-item")!;
     expect(container.querySelectorAll(".plugins-item")).toHaveLength(1);
-    expect(row.textContent).toContain("Apple Notes");
+    expect(row.textContent).toContain("Café Notes");
     expect(row.querySelector("[role=img]")?.getAttribute("title")).toContain("Disabled");
     row.querySelector<HTMLButtonElement>(".plugins-item__detail-button")!.click();
     expect(onDetailOpen).toHaveBeenCalledWith("apple-notes");
