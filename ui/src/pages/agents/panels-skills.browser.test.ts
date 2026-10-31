@@ -367,6 +367,29 @@ describe("agents skills panel (browser)", () => {
     expect(view.filter()).toBe(filter);
   });
 
+  it("matches canonically equivalent skill filter queries across NFC and NFD", async () => {
+    const nfdTitle = "München notes".normalize("NFD");
+    const view = mountSkills([
+      createSkill({ name: nfdTitle, source: "workspace" }),
+      createSkill({ name: "Home notes", source: "workspace" }),
+    ]);
+    const { container, params } = view;
+    await waitForSolid(() => expect(view.rows()).toHaveLength(2));
+
+    view.update({ ...params, filter: "münchen".normalize("NFC") });
+    await waitForSolid(() => expect(container.textContent).toContain("1 shown"));
+    expect(view.rows()).toHaveLength(1);
+    expect(view.rows()[0]!.textContent).toContain(nfdTitle);
+
+    view.update({ ...params, filter: "münchen".normalize("NFD") });
+    await waitForSolid(() => expect(container.textContent).toContain("1 shown"));
+    expect(view.rows()).toHaveLength(1);
+    expect(view.rows()[0]!.textContent).toContain(nfdTitle);
+
+    view.update({ ...params, filter: "" });
+    await waitForSolid(() => expect(view.rows()).toHaveLength(2));
+  });
+
   it.each(["initial", "agent", "connection"])(
     "only mounts matching controls when the %s scope starts filtered",
     async (scope) => {
