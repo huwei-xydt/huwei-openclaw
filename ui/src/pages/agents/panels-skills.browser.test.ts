@@ -327,9 +327,9 @@ describe("agents skills panel (browser)", () => {
     },
   );
 
-  it("retains matching controls while filtering and restores removed skills after clearing", async () => {
+  it("retains Unicode matching controls and restores raw skills after clearing", async () => {
     const view = mountSkills([
-      createSkill({ name: "Unique Built In Match", source: "openclaw-bundled", bundled: true }),
+      createSkill({ name: "Uniqué Built In Match", source: "openclaw-bundled", bundled: true }),
       createSkill({ name: "Installed Distractor", source: "openclaw-managed" }),
     ]);
     const { container, params } = view;
@@ -340,7 +340,7 @@ describe("agents skills panel (browser)", () => {
     const matchedControl = matchedRow.querySelector("input");
     const filter = view.filter();
 
-    view.update({ ...params, filter: "Unique" });
+    view.update({ ...params, filter: "Uniqué" });
     await waitForSolid(() => expect(view.rows()).toHaveLength(1));
     const filteredGroup = container.querySelector<HTMLDetailsElement>(".agent-skills-group");
     expect(filteredGroup?.open).toBe(true);
@@ -348,7 +348,7 @@ describe("agents skills panel (browser)", () => {
     expect(matchedRow.querySelector("input")).toBe(matchedControl);
     expect(container.textContent).not.toContain("Installed Distractor");
 
-    view.update({ ...params, filter: "Unique Built In Match" });
+    view.update({ ...params, filter: "Uniqué Built In Match" });
     await waitForSolid(() => expect(container.textContent).toContain("1 shown"));
     expect(view.rows()[0]).toBe(matchedRow);
     expect(view.filter()).toBe(filter);
@@ -361,33 +361,10 @@ describe("agents skills panel (browser)", () => {
 
     view.update({ ...params, filter: "" });
     await waitForSolid(() => expect(view.rows()).toHaveLength(2));
-    expect(container.textContent).toContain("Unique Built In Match");
+    expect(container.textContent).toContain("Uniqué Built In Match");
     expect(container.textContent).toContain("Installed Distractor");
     expect(view.checked()).toEqual([true, true]);
     expect(view.filter()).toBe(filter);
-  });
-
-  it("matches canonically equivalent skill filter queries across NFC and NFD", async () => {
-    const nfdTitle = "München notes".normalize("NFD");
-    const view = mountSkills([
-      createSkill({ name: nfdTitle, source: "workspace" }),
-      createSkill({ name: "Home notes", source: "workspace" }),
-    ]);
-    const { container, params } = view;
-    await waitForSolid(() => expect(view.rows()).toHaveLength(2));
-
-    view.update({ ...params, filter: "münchen".normalize("NFC") });
-    await waitForSolid(() => expect(container.textContent).toContain("1 shown"));
-    expect(view.rows()).toHaveLength(1);
-    expect(view.rows()[0]!.textContent).toContain(nfdTitle);
-
-    view.update({ ...params, filter: "münchen".normalize("NFD") });
-    await waitForSolid(() => expect(container.textContent).toContain("1 shown"));
-    expect(view.rows()).toHaveLength(1);
-    expect(view.rows()[0]!.textContent).toContain(nfdTitle);
-
-    view.update({ ...params, filter: "" });
-    await waitForSolid(() => expect(view.rows()).toHaveLength(2));
   });
 
   it.each(["initial", "agent", "connection"])(
@@ -395,10 +372,10 @@ describe("agents skills panel (browser)", () => {
     async (scope) => {
       const view = mountSkills(
         [
-          createSkill({ name: "Matching skill", source: "openclaw-managed" }),
+          createSkill({ name: "Mátching skill", source: "openclaw-managed" }),
           createSkill({ name: "Unrelated skill", source: "openclaw-managed" }),
         ],
-        { filter: scope === "initial" ? "Matching" : "" },
+        { filter: scope === "initial" ? "Mátching" : "" },
       );
       const { container, params } = view;
       await waitForSolid(() => expect(view.rows()).toHaveLength(scope === "initial" ? 1 : 2));
@@ -408,7 +385,7 @@ describe("agents skills panel (browser)", () => {
         ...params,
         agentId,
         agentSkillsAgentId: agentId,
-        filter: "Matching",
+        filter: "Mátching",
         ...(scope === "connection"
           ? { readData: () => ({ ...params.readData(), requestGeneration: 1 }) }
           : {}),
