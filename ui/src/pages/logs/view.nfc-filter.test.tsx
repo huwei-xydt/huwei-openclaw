@@ -40,7 +40,7 @@ function createProps(overrides: Partial<LogsProps> = {}): LogsProps {
 
 it("matches NFC and NFD log filters against NFD log text", async () => {
   await i18n.setLocale("en");
-  installLogsViewport(document.createElement("div"));
+  installLogsViewport();
   const messages = () =>
     Array.from(document.querySelectorAll(".log-message"), (node) => node.textContent ?? "");
   const view = mountSolid(() => <LogsView {...createProps({ filterText: NFC_NEEDLE })} />);
