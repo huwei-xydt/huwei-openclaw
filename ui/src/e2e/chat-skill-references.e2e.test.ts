@@ -17,6 +17,10 @@ const command = (name: string, skillDisplayName?: string) => ({
   ...(skillDisplayName ? { skillDisplayName, skillModelVisible: true } : {}),
 });
 
+/** NFD title (M + combining diaeresis + uchen) vs ASCII command token. */
+const NFD_TITLE = "München";
+const NFC_TITLE = NFD_TITLE.normalize("NFC");
+
 suite.define(() => {
   it("references multiple skills inside a normal prompt and sends their raw names", async () => {
     const artifactDir = process.env.OPENCLAW_UI_E2E_ARTIFACT_DIR?.trim()
@@ -26,7 +30,6 @@ suite.define(() => {
     await suite.withPage(
       {
         viewport,
-        ...(artifactDir ? { recordVideo: { dir: artifactDir, size: viewport } } : {}),
       },
       async ({ page }) => {
         const commands = [
@@ -106,6 +109,71 @@ suite.define(() => {
           .toEqual({ first: "/status", last: "/status_report" });
         await composer.press("Tab");
         await draft("/status");
+      },
+    );
+  });
+
+  it("matches skill $refs across NFC query and NFD display titles and keeps $HOME literal", async () => {
+    const artifactDir = process.env.OPENCLAW_UI_E2E_ARTIFACT_DIR?.trim()
+      ? createControlUiE2eArtifactDir("chat-skill-references-nfc")
+      : undefined;
+    const viewport = { width: 1280, height: 900 };
+    await suite.withPage(
+      {
+        viewport,
+      },
+      async ({ page }) => {
+        const commands = [command("munchen_notes", NFD_TITLE), command("home_notes", "Home Notes")];
+        const gateway = await installMockGateway(page, {
+          methodResponses: {
+            "chat.startup": {
+              messages: [],
+              metadata: { commands, models: [] },
+              sessionId: "skill-reference-nfc-session",
+              thinkingLevel: null,
+            },
+            "commands.list": { commands },
+          },
+        });
+
+        await page.goto(`${suite.server.baseUrl}chat`);
+        await gateway.waitForRequest("sessions.messages.subscribe");
+        const composer = page.locator(".agent-chat__composer-combobox textarea");
+        const draft = (value: string) => expect.poll(() => composer.inputValue()).toBe(value);
+        const picker = page.getByRole("listbox", { name: "Skill references" });
+        const screenshot = async (name: string, target: Locator) => {
+          if (artifactDir) {
+            await writeFile(
+              path.join(artifactDir, name),
+              await takeControlUiViewportScreenshot(page, page.locator(".shell"), [target]),
+            );
+          }
+        };
+
+        // NFC query against NFD title: menu must show the NFD title and insert the ASCII token.
+        await composer.fill(`Open $${"münchen".normalize("NFC")}`);
+        await picker.waitFor({ state: "visible" });
+        await expect
+          .poll(() => picker.getByRole("option").allTextContents())
+          .toEqual([expect.stringContaining(NFD_TITLE)]);
+        await screenshot("nfc-query-nfd-title-picker.png", picker);
+        await composer.press("Enter");
+        await draft("Open $munchen_notes ");
+        await screenshot("nfc-query-inserted.png", composer);
+
+        // NFD query against NFC-comparable title.
+        await composer.fill(`Open $${"münchen".normalize("NFD")}`);
+        await picker.waitFor({ state: "visible" });
+        await expect
+          .poll(() => picker.getByRole("option").allTextContents())
+          .toEqual([expect.stringContaining(NFD_TITLE)]);
+        await composer.press("Enter");
+        await draft("Open $munchen_notes ");
+
+        // Documented shell variable stays ordinary text while skill completions exist.
+        await composer.fill("Print $HOME");
+        await expect.poll(() => picker.count()).toBe(0);
+        await draft("Print $HOME");
       },
     );
   });
