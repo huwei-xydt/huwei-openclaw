@@ -1,0 +1,30 @@
+{
+  "base": {
+    "wellFormed": false,
+    "loneSurrogate": true,
+    "utf16Length": 201,
+    "codePoints": 201,
+    "lastUnit": "U+2026",
+    "tail": [
+      "U+0061",
+      "U+0061",
+      "U+D83D",
+      "U+2026"
+    ]
+  },
+  "fix": {
+    "wellFormed": true,
+    "loneSurrogate": false,
+    "utf16Length": 200,
+    "codePoints": 200,
+    "lastUnit": "U+2026",
+    "tail": [
+      "U+0061",
+      "U+0061",
+      "U+0061",
+      "U+2026"
+    ]
+  },
+  "inputUtf16": 241,
+  "inputCodePoints": 240
+}

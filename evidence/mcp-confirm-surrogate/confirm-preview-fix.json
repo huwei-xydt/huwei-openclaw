@@ -1,0 +1,13 @@
+{
+  "wellFormed": true,
+  "loneSurrogate": false,
+  "utf16Length": 200,
+  "codePoints": 200,
+  "lastUnit": "U+2026",
+  "tail": [
+    "U+0061",
+    "U+0061",
+    "U+0061",
+    "U+2026"
+  ]
+}
