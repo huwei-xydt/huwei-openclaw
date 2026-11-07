@@ -1,0 +1,7 @@
+{
+  "text": "Bot token format is invalid",
+  "spanClass": "settings-save-indicator__failure",
+  "spanColor": "rgb(185, 28, 28)",
+  "buttonColors": [],
+  "hasOrphanDanger": false
+}

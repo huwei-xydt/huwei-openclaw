@@ -1,0 +1,16 @@
+{
+  "text": "Settings changed elsewhere: Bot Token",
+  "spanClass": "settings-save-indicator__failure",
+  "spanColor": "rgb(185, 28, 28)",
+  "buttonColors": [
+    {
+      "text": "Reload",
+      "color": "rgb(53, 53, 53)"
+    },
+    {
+      "text": "Overwrite",
+      "color": "rgb(53, 53, 53)"
+    }
+  ],
+  "hasOrphanDanger": false
+}

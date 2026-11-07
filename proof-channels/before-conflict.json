@@ -1,0 +1,16 @@
+{
+  "text": "Settings changed elsewhere: Bot Token",
+  "spanClass": "",
+  "spanColor": "rgb(53, 53, 53)",
+  "buttonColors": [
+    {
+      "text": "Reload",
+      "color": "rgb(53, 53, 53)"
+    },
+    {
+      "text": "Overwrite",
+      "color": "rgb(53, 53, 53)"
+    }
+  ],
+  "hasOrphanDanger": true
+}
