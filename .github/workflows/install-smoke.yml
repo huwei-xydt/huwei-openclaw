@@ -27,7 +27,6 @@ concurrency:
 
 jobs:
   install_smoke:
-    if: github.repository == 'openclaw/openclaw'
     permissions:
       actions: read
       contents: read
