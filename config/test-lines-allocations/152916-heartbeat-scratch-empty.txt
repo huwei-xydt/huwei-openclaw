@@ -1,0 +1,2 @@
+# Exact net test-line growth from the heartbeat scratch emptiness regression tests (fixes #152916) that left main over the test-lines ceiling.
+48

@@ -81,6 +81,7 @@ export function isCronScratchEffectivelyEmpty(content: string | undefined | null
       !trimmed ||
       /^#+(\s|$)/.test(trimmed) ||
       /^[-*+]\s*(\[[\sXx]?\]\s*)?$/.test(trimmed) ||
+      /^[-*+]\s*\[[^\]\n]*\]\([^)\n]*\)\s*$/.test(trimmed) ||
       /^```[A-Za-z0-9_-]*$/.test(trimmed)
     ) {
       continue;
