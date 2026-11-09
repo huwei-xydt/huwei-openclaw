@@ -1159,5 +1159,78 @@ describe("signal createSignalEventHandler inbound context", () => {
       }
     },
   );
+
+  it("keeps a UUID quote author as a UUID identity instead of a fabricated phone number", async () => {
+    const handler = createTestHandler({
+      cfg: createGroupAllowlistConfig({
+        signal: {
+          groupAllowFrom: ["+15550001111"],
+          contextVisibility: "allowlist_quote",
+        },
+      }),
+      groupPolicy: "allowlist",
+      groupAllowFrom: ["+15550001111"],
+    });
+
+    await receiveGroupMessage(handler, "", {
+      quote: {
+        text: "quoted context",
+        author: "b2345678-90ab-4cde-8f01-23456789abcd",
+      },
+    });
+
+    const context = requireCapturedContext();
+    expect(context.ReplyToBody).toBe("quoted context");
+    expect(context.ReplyToSender).toBe("uuid:b2345678-90ab-4cde-8f01-23456789abcd");
+    expect(context.ReplyToIsQuote).toBe(true);
+  });
+
+  it("keeps a UUID quote author hidden when denied in allowlist mode", async () => {
+    const handler = createTestHandler({
+      cfg: createGroupAllowlistConfig({
+        signal: {
+          groupAllowFrom: ["+15550001111"],
+          contextVisibility: "allowlist",
+        },
+      }),
+      groupPolicy: "allowlist",
+      groupAllowFrom: ["+15550001111"],
+    });
+
+    await receiveGroupMessage(handler, "", {
+      quote: {
+        text: "blocked quote",
+        author: "b2345678-90ab-4cde-8f01-23456789abcd",
+      },
+    });
+
+    expect(capture.ctx).toBeUndefined();
+    expect(dispatchInboundMessageMock).not.toHaveBeenCalled();
+  });
+
+  it("keeps an allowlisted UUID quote author visible with UUID attribution in allowlist mode", async () => {
+    const handler = createTestHandler({
+      cfg: createGroupAllowlistConfig({
+        signal: {
+          groupAllowFrom: ["+15550001111", "uuid:b2345678-90ab-4cde-8f01-23456789abcd"],
+          contextVisibility: "allowlist",
+        },
+      }),
+      groupPolicy: "allowlist",
+      groupAllowFrom: ["+15550001111", "uuid:b2345678-90ab-4cde-8f01-23456789abcd"],
+    });
+
+    await receiveGroupMessage(handler, "", {
+      quote: {
+        text: "quoted context",
+        author: "b2345678-90ab-4cde-8f01-23456789abcd",
+      },
+    });
+
+    const context = requireCapturedContext();
+    expect(context.ReplyToBody).toBe("quoted context");
+    expect(context.ReplyToSender).toBe("uuid:b2345678-90ab-4cde-8f01-23456789abcd");
+    expect(context.ReplyToIsQuote).toBe(true);
+  });
 });
 /* oxlint-disable max-lines -- TODO: split this grandfathered oversized file. */

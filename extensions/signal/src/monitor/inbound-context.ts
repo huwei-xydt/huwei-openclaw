@@ -9,6 +9,7 @@ import {
   isSignalSenderAllowed,
   resolveSignalSender,
 } from "../identity.js";
+import { looksLikeUuid } from "../uuid.js";
 import type { SignalDataMessage } from "./event-handler.types.js";
 
 export function resolveSignalQuoteContext(params: {
@@ -24,9 +25,12 @@ export function resolveSignalQuoteContext(params: {
     accountId: params.accountId,
   });
   const quoteText = normalizeOptionalString(params.dataMessage?.quote?.text) ?? "";
+  const quoteAuthor = normalizeOptionalString(params.dataMessage?.quote?.author) ?? null;
+  const quoteAuthorUuid = normalizeOptionalString(params.dataMessage?.quote?.authorUuid) ?? null;
+  const quoteAuthorIsUuid = Boolean(quoteAuthor && looksLikeUuid(quoteAuthor));
   const quoteSender = resolveSignalSender({
-    sourceNumber: params.dataMessage?.quote?.author ?? null,
-    sourceUuid: params.dataMessage?.quote?.authorUuid ?? null,
+    sourceNumber: quoteAuthorIsUuid ? null : quoteAuthor,
+    sourceUuid: quoteAuthorUuid ?? (quoteAuthorIsUuid ? quoteAuthor : null),
   });
   const quoteSenderAllowed = resolveInboundSupplementalSenderAllowed({
     isGroup: params.isGroup,
